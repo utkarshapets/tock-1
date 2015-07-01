@@ -22,7 +22,7 @@
 
 #![crate_name = "support"]
 #![crate_type = "rlib"]
-#![feature(asm,lang_items,core,no_std)]
+#![feature(asm,lang_items,core,no_std,core_intrinsics)]
 #![no_std]
 
 extern crate core;

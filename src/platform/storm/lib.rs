@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core,no_std)]
+#![feature(core,no_std,core_prelude)]
 
 extern crate core;
 extern crate common;
@@ -105,4 +105,3 @@ pub unsafe fn init() -> &'static mut Firestorm {
     firestorm.console.initialize();
     firestorm
 }
-
