@@ -1,6 +1,6 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core,concat_idents,no_std)]
+#![feature(asm,core,concat_idents,no_std,core_intrinsics,core_prelude)]
 #![no_std]
 
 extern crate core;
@@ -226,4 +226,3 @@ impl Sam4l {
         }
     }
 }
-

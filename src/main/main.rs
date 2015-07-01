@@ -1,4 +1,4 @@
-#![feature(core,no_std)]
+#![feature(core,no_std,core_prelude,raw,core_intrinsics,core_slice_ext)]
 #![no_main]
 #![no_std]
 
@@ -85,4 +85,3 @@ pub extern fn main() {
         };
     }
 }
-
