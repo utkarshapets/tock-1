@@ -47,12 +47,14 @@ pub struct SPIParams {
 pub trait SPI {
     /// Configures an object for communication as an SPI master
     fn init(&mut self, params: SPIParams);
-    /// Sends a byte
-    fn send_byte(&mut self, byte: u8);
-    /// Reads and returns a byte
-    ///
-    /// If no byte is available to read, this function blocks until one is available.
-    fn read_byte(&self) -> u8;
+    /// Simultaneously sends a byte and receives a byte.
+    /// Returns the received byte.
+    /// Blocks until a received byte is available.
+    fn send_and_receive(&mut self, out_byte: u8) -> u8;
+    /// Sends a zero byte while simultaneously receiving a byte,
+    /// and returns the received byte.
+    /// Blocks until a received byte is available.
+    fn receive(&mut self) -> u8;
     /// Enables receive functionality
     fn enable_rx(&mut self);
     /// Disables receive functionality

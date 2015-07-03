@@ -11,6 +11,7 @@ pub mod i2c;
 pub mod timer;
 pub mod uart;
 pub mod adc;
+pub mod spi_master;
 
 pub use process::Callback;
 
@@ -24,4 +25,3 @@ pub trait Driver {
     fn subscribe(&mut self, subscribe_type: usize, callback: Callback) -> isize;
     fn command(&mut self, r1: usize, r2: usize) -> isize;
 }
-
