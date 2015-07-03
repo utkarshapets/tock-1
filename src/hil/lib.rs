@@ -9,6 +9,7 @@ pub mod gpio;
 pub mod timer;
 pub mod uart;
 pub mod adc;
+pub mod spi_master;
 
 pub trait Controller {
     type Config;
@@ -20,4 +21,3 @@ pub trait Driver {
     fn subscribe(&mut self, r1: usize, r2: usize) -> isize;
     fn command(&mut self, r1: usize, r2: usize) -> isize;
 }
-
