@@ -1,6 +1,6 @@
 use core::prelude::*;
 use core::intrinsics;
-use hil::{uart, Controller};
+use hil::{uart, spi_master, Controller};
 use hil::uart::Parity;
 
 use nvic;
@@ -105,8 +105,27 @@ impl USART {
     }
 
     fn set_baud_rate(&mut self, baud_rate: u32) {
-        let cd = 48000000 / (16 * baud_rate);
-        volatile!(self.regs.brgr = cd);
+
+        let selected_clock = 48000000;
+
+        let mode = volatile!(self.regs.mr);
+        let synchronous = ((mode >> 8) & 1) != 0;
+        let mode_only = mode & 0xF;
+        let spi_mode = (mode_only == 0xE) || (mode_only == 0xF);
+        if spi_mode || synchronous {
+            // Use the SPI or synchronous formula
+            // CD = selected clock / baud rate
+            let cd = selected_clock / baud_rate;
+            volatile!(self.regs.brgr = cd);
+        }
+        else {
+            // Use the asynchronous non-SPI formula
+            // CD = selected clock / (8 * baud rate * (2 - oversample))
+            // Read oversample
+            let oversample = (mode >> 19) & 1;
+            let cd = selected_clock / (8 * baud_rate * (2 - oversample));
+            volatile!(self.regs.brgr = cd);
+        }
     }
 
     fn set_mode(&mut self, mode: u32) {
@@ -223,3 +242,31 @@ pub unsafe extern fn USART3_Handler() {
     nvic::disable(nvic::NvicIdx::USART3);
 }
 
+
+// SPI master implementation
+impl spi_master::SPI for USART {
+    fn init(&mut self, params: spi_master::SPIParams) {
+        let mode = 0xE; // SPI master mode
+        self.enable_clock();
+        self.set_baud_rate(params.baud_rate);
+
+    }
+    fn send_and_receive(&mut self, out_byte: u8) -> u8 {
+        0
+    }
+    fn receive(&mut self) -> u8 {
+        0
+    }
+    fn enable_rx(&mut self) {
+
+    }
+    fn disable_rx(&mut self) {
+
+    }
+    fn enable_tx(&mut self) {
+
+    }
+    fn disable_tx(&mut self) {
+
+    }
+}
