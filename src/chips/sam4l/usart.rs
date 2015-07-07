@@ -214,9 +214,7 @@ impl uart::UART for USART {
 
     fn read_byte(&self) -> u8 {
         while !self.rx_ready() {}
-        unsafe {
-            intrinsics::volatile_load(&self.regs.rhr) as u8
-        }
+        volatile!(self.regs.rhr) as u8
     }
 
     fn enable_rx(&mut self) {
@@ -248,27 +246,64 @@ pub unsafe extern fn USART3_Handler() {
 // SPI master implementation
 impl spi_master::SPI for USART {
     fn init(&mut self, params: spi_master::SPIParams) {
-        let mode = 0xE; // SPI master mode
+        let mut mode: u32 = 0xE; // SPI master mode
+        // Data order (endianness)
+        // TODO: Find where to set this
+        // MR.MSBF is used for clock polarity in SPI mode, so it cannot be used for data order
+
+        // Clock polarity
+        match params.clock_polarity {
+            spi_master::ClockPolarity::IdleHigh => mode = mode | (1 << 16),
+            spi_master::ClockPolarity::IdleLow => { /* Defaults to 0 (IdleLow) */ },
+        }
+        // Clock phase
+        match params.clock_phase {
+            spi_master::ClockPhase::SampleTrailing => mode = mode | (1 << 8),
+            spi_master::ClockPhase::SampleLeading => { /* Defaults to 0 */ },
+        }
+        // 8-bit character length (this includes the parity bit)
+        mode = mode | (0b11 << 6);
+        // No parity
+        mode = mode | (0b100 << 9);
+        self.set_mode(mode);
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
+    }
+    fn write(&mut self, out_byte: u8) -> u8 {
+        // Wait for readiness
+        while !self.tx_ready() || !self.rx_ready() {}
+        // Load byte to write
+        volatile!(self.regs.thr = out_byte as u32);
 
+        // Does anything need to be done to actually do the read/write?
+
+        // Return read value
+        volatile!(self.regs.rhr) as u8
     }
-    fn send_and_receive(&mut self, out_byte: u8) -> u8 {
-        0
-    }
-    fn receive(&mut self) -> u8 {
-        0
+    fn read(&mut self) -> u8 {
+        // Wait for readiness
+        while !self.tx_ready() || !self.rx_ready() {}
+        // Load byte to write (0)
+        volatile!(self.regs.thr = 0 as u32);
+
+        // Does anything need to be done to actually do the read/write?
+
+        // Return read value
+        volatile!(self.regs.rhr) as u8
     }
     fn enable_rx(&mut self) {
-
+        volatile!(self.regs.cr = 1 << 4);
     }
+
     fn disable_rx(&mut self) {
-
+        volatile!(self.regs.cr = 1 << 5);
     }
+
     fn enable_tx(&mut self) {
-
+        volatile!(self.regs.cr = 1 << 6);
     }
-    fn disable_tx(&mut self) {
 
+    fn disable_tx(&mut self) {
+        volatile!(self.regs.cr = 1 << 7);
     }
 }

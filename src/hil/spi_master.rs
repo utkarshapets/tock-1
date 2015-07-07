@@ -49,12 +49,11 @@ pub trait SPI {
     fn init(&mut self, params: SPIParams);
     /// Simultaneously sends a byte and receives a byte.
     /// Returns the received byte.
-    /// Blocks until a received byte is available.
-    fn send_and_receive(&mut self, out_byte: u8) -> u8;
+    fn write(&mut self, out_byte: u8) -> u8;
     /// Sends a zero byte while simultaneously receiving a byte,
     /// and returns the received byte.
     /// Blocks until a received byte is available.
-    fn receive(&mut self) -> u8;
+    fn read(&mut self) -> u8;
     /// Enables receive functionality
     fn enable_rx(&mut self);
     /// Disables receive functionality
