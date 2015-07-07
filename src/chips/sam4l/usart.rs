@@ -1,6 +1,7 @@
 use core::prelude::*;
 use core::intrinsics;
 use hil::{uart, spi_master, Controller};
+use hil::uart::UART;
 use hil::uart::Parity;
 
 use nvic;
