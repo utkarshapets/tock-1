@@ -30,16 +30,34 @@ const PHASE: ClockPhase = ClockPhase::SampleLeading;
 
 /// Possible states in basic operating mode
 #[allow(non_camel_case_types)]
+#[derive(PartialEq)]
 enum State {
-    P_ON = 0x0,
-    BUSY_RX = 0x1,
-    BUSY_TX = 0x2,
-    RX_ON = 0x6,
-    TRX_OFF = 0x8,
-    PLL_ON = 0x9,
-    SLEEP = 0xF,
-    RX_ON_NOCLK = 0x1C,
-    STATE_TRANSITION_IN_PROGRESS = 0x1F,
+    P_ON,
+    BUSY_RX,
+    BUSY_TX,
+    RX_ON,
+    TRX_OFF,
+    PLL_ON,
+    SLEEP,
+    RX_ON_NOCLK,
+    STATE_TRANSITION_IN_PROGRESS,
+}
+
+impl State {
+    /// Converts a State into a u8 value as used by the hardware in the TRX_STATE register
+    fn as_byte(&self) -> u8 {
+        match *self {
+            State::P_ON => 0x0,
+            State::BUSY_RX => 0x1,
+            State::BUSY_TX => 0x2,
+            State::RX_ON => 0x6,
+            State::TRX_OFF => 0x8,
+            State::PLL_ON => 0x9,
+            State::SLEEP => 0xF,
+            State::RX_ON_NOCLK => 0x1C,
+            State::STATE_TRANSITION_IN_PROGRESS => 0x1F,
+        }
+    }
 }
 
 /// Commands sent as (or part of) the first byte of an SPI session
@@ -181,7 +199,7 @@ impl<S: SPI, GPIO: GPIOPin> RF230<S, GPIO> {
     /// Writes a frame to the framebuffer
     /// The data must not contain more than 127 bytes. If the data contains more than 127 bytes,
     /// the frame will not be transmitted.
-    fn write_frame(&mut self, data: &[u8]) {
+    fn write_frame_buffer(&mut self, data: &[u8]) {
         if data.len() > frame::Frame::max_length() {
             // TODO: Better error handling
             return;
@@ -201,7 +219,7 @@ impl<S: SPI, GPIO: GPIOPin> RF230<S, GPIO> {
 
     /// Reads a frame from the framebuffer
     /// Returns the frame that was read.
-    fn read_frame(&mut self) -> frame::Frame {
+    fn read_frame_buffer(&mut self) -> frame::Frame {
         let _transaction = SPITransaction::new(&mut self.slave_select);
         // Send read request
         self.spi.write(SPICommand::FrameBufferRead as u8);
@@ -242,4 +260,66 @@ impl<S: SPI, GPIO: GPIOPin> RF230<S, GPIO> {
         }
     }
 
+    /// Returns the current state of the RF230
+    fn get_state(&mut self) -> State {
+        match self.read_register(registers::TRX_STATUS) {
+            0x0 => State::P_ON,
+            0x1 => State::BUSY_RX,
+            0x2 => State::BUSY_TX,
+            0x6 => State::RX_ON,
+            0x8 => State::TRX_OFF,
+            0x9 => State::PLL_ON,
+            0xF => State::SLEEP,
+            0x1C => State::RX_ON_NOCLK,
+            0x1F => State::STATE_TRANSITION_IN_PROGRESS,
+            _ => {
+                static _MSG_FILE_LINE: (&'static str, &'static str, u32) = ("Unexpected state", file!(), line!());
+                ::core::panicking::panic(&_MSG_FILE_LINE)
+            }
+        }
+    }
+
+    /// Writes the specified state to the TRX_STATE register.
+    /// Note that this is is only valid for some state transitions, as defined in the state diagram.
+    fn write_state_register(&mut self, state: State) {
+        self.write_register(registers::TRX_STATUS, state.as_byte());
+    }
+
+    /// Sets the state of the RF230 to State::RX_ON
+    fn set_state_rx_on(&mut self) {
+        loop {
+            let state = self.get_state();
+            match state {
+                State::P_ON => self.write_state_register(State::TRX_OFF),
+                State::BUSY_RX => { /* Wait for receive completion */ },
+                State::BUSY_TX => { /* Wait for send completion */ },
+                State::TRX_OFF => self.write_state_register(State::RX_ON),
+                State::PLL_ON => self.write_state_register(State::RX_ON),
+                State::SLEEP => self.control.clear(), // Set SLP_TR low
+                State::RX_ON_NOCLK => self.control.clear(), // Set SLP_TR low
+                State::STATE_TRANSITION_IN_PROGRESS => { /* Wait for state transition to end */ },
+
+                State::RX_ON => return,
+            }
+        }
+    }
+
+    /// Sets the state of the RF230 to State::PLL_ON (used to send frames)
+    fn set_state_pll_on(&mut self) {
+        loop {
+            let state = self.get_state();
+            match state {
+                State::P_ON => self.write_state_register(State::TRX_OFF),
+                State::BUSY_RX => { /* Wait for receive completion */ },
+                State::BUSY_TX => { /* Wait for send completion */ },
+                State::TRX_OFF => self.write_state_register(State::PLL_ON),
+                State::RX_ON => self.write_state_register(State::PLL_ON),
+                State::SLEEP => self.control.clear(), // Set SLP_TR low
+                State::RX_ON_NOCLK => self.control.clear(), // Set SLP_TR low
+                State::STATE_TRANSITION_IN_PROGRESS => { /* Wait for state transition to end */ },
+
+                State::PLL_ON => return,
+            }
+        }
+    }
 }
