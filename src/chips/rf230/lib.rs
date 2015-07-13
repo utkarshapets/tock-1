@@ -200,10 +200,7 @@ impl<S: SPI, GPIO: GPIOPin> RF230<S, GPIO> {
     /// The data must not contain more than 127 bytes. If the data contains more than 127 bytes,
     /// the frame will not be transmitted.
     fn write_frame_buffer(&mut self, data: &[u8]) {
-        if data.len() > frame::Frame::max_length() {
-            // TODO: Better error handling
-            return;
-        }
+        // TOOD: Redo
 
         let length = data.len() as u8;
         let _transaction = SPITransaction::new(&mut self.slave_select);
@@ -219,20 +216,8 @@ impl<S: SPI, GPIO: GPIOPin> RF230<S, GPIO> {
 
     /// Reads a frame from the framebuffer
     /// Returns the frame that was read.
-    fn read_frame_buffer(&mut self) -> frame::Frame {
-        let _transaction = SPITransaction::new(&mut self.slave_select);
-        // Send read request
-        self.spi.write(SPICommand::FrameBufferRead as u8);
-        // Read frame length
-        let length = self.spi.read();
-        let mut frame = frame::Frame::new(length);
-        // Read data
-        for i in 0..(length - 1) {
-            frame[i as usize] = self.spi.read();
-        }
-        // Read LQI
-        frame.lqi = self.spi.read();
-        frame
+    fn read_frame_buffer(&mut self) {
+
     }
 
     /// Reads `data.len()` bytes from the RF230 SRAM starting at the specified address and stores
