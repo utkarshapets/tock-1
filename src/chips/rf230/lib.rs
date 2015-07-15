@@ -1,6 +1,6 @@
 #![crate_name = "rf230"]
 #![crate_type = "rlib"]
-#![feature(no_std,core,core_slice_ext,core_panic)]
+#![feature(no_std,core,core_panic)]
 #![no_std]
 #![allow(dead_code)]
 
