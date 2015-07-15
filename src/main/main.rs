@@ -55,17 +55,13 @@ pub extern fn main() {
                             break 'process;
                         },
                         Some(syscall::SUBSCRIBE) => {
-                            let driver_num = process.r0();
-                            let subdriver_num = process.r1();
-                            let callback_ptr = process.r2() as *mut ();
-
-                            let res = platform.with_driver(driver_num, |driver| {
+                            let res = platform.with_driver(process.r0(), |driver| {
                                 let callback = hil::Callback {
                                     process_ptr: process_s.borrow_mut() as *mut Process as *mut (),
-                                    fn_ptr: callback_ptr
+                                    fn_ptr: process.r2() as *mut ()
                                 };
                                 match driver {
-                                    Some(d) => d.subscribe(subdriver_num,
+                                    Some(d) => d.subscribe(process.r1(),
                                                            callback),
                                     None => -1
                                 }
