@@ -8,9 +8,23 @@ pub enum FrameType {
     Data,
     Acknowledge,
     MACCommand,
-    /// Indicates an unexpected value
+    /// Indicates an unrecognized type
     Other(u8),
 }
+
+impl FrameType {
+    /// Converts this frame type into a 3-bit value
+    fn as_byte(&self) -> u8 {
+        match *self {
+            FrameType::Beacon => 0,
+            FrameType::Data => 1,
+            FrameType::Acknowledge => 2,
+            FrameType::MACCommand => 3,
+            FrameType::Other(value) => value & 0b111,
+        }
+    }
+}
+
 /// Forms of addresses
 pub enum Address {
     /// Short 16-bit address
@@ -75,8 +89,27 @@ pub struct Frame {
 }
 
 impl Frame {
-    /// Converts this frame into a slice of bytes representing a MAC protocol data unit according
-    /// to the IEEE 802.15.4 protocol
+    /// Converts this frame into an array of bytes representing a MAC protocol data unit according
+    /// to the IEEE 802.15.4 protocol.
+    ///
+    /// Byte 0 in the returned array should be sent first.
+    ///
+    /// Returns an array of bytes and the length of the protocol data unit
+    fn as_mpdu_bytes(&self) -> ([u8; MAX_MPDU_LENGTH], usize) {
+        let mut bytes: [u8; MAX_MPDU_LENGTH] = [0; MAX_MPDU_LENGTH];
+        let length = self.mpdu_length();
+
+        let mut index = 0;
+
+        bytes[0] = self.frame_type.as_byte()
+            | ((self.security_enabled as u8) << 3)
+            | ((self.frame_pending as u8) << 4)
+            | ((self.acknoledgment_request as u8) << 5);
+        // TODO: More
+
+
+        (bytes, length)
+    }
 
 
     /// Returns the length of this frame when formatted as a MAC protocol data unit,
@@ -99,6 +132,6 @@ impl Frame {
                 0
             }
         };
-        0
+        2 + 1 + address_block_length + self.payload_length + 2
     }
 }

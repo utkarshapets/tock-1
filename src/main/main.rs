@@ -64,7 +64,7 @@ pub extern fn main() {
                                     hil::Callback::new(process_s.borrow_mut(),
                                                        callback_ptr);
                                 match driver {
-                                    Some(d) => d.subscribe(subdriver_num,
+                                    Some(d) => d.subscribe(process.r1(),
                                                            callback),
                                     None => -1
                                 }

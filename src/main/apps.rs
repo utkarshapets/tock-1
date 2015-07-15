@@ -104,6 +104,8 @@ r##"You may issue the following commands
     pub fn _start() {
         init();
         loop {
+            enable_pin(0);
+            set_pin(0);
             wait();
         }
     }
@@ -114,6 +116,8 @@ r##"You may issue the following commands
         subscribe_temperature(tmp_available);
         enable_tmp006();
         puts(PROMPT);
+        enable_pin(0);
+        set_pin(0);
     }
 
     fn tmp_available(mut tmp: i16) {
@@ -207,4 +211,3 @@ r##"You may issue the following commands
 
     }
 }
-
