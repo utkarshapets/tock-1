@@ -201,17 +201,14 @@ pub struct Frame {
 
 impl Frame {
     /// Converts this frame into an array of bytes representing a MAC protocol data unit according
-    /// to the IEEE 802.15.4 protocol.
+    /// to the IEEE 802.15.4 protocol, but excluding the CRC-16 checksum.
     ///
     /// Byte 0 in the returned array should be sent first.
     ///
-    /// Returns an array of bytes and the length of the protocol data unit
+    /// Returns an array of bytes and the length of the protocol data unit.
+    ///
     fn as_mpdu_bytes(&self) -> ([u8; MAX_MPDU_LENGTH], usize) {
         let mut bytes: [u8; MAX_MPDU_LENGTH] = [0; MAX_MPDU_LENGTH];
-        let length = self.mpdu_length();
-
-        let mut index = 0;
-
         let intra_pan = self.addresses.is_within_pan();
 
         bytes[0] = self.frame_type.as_byte()
@@ -229,7 +226,13 @@ impl Frame {
         Frame::append_address(&mut bytes, &mut index, &self.addresses.source_address());
         Frame::append_pan_id(&mut bytes, &mut index, &self.addresses.source_pan_id());
 
-        (bytes, length)
+        // Payload
+        for payload_index in (0..self.payload_length) {
+            bytes[index] = self.payload[payload_index];
+            index = index + 1;
+        }
+        
+        (bytes, index)
     }
 
     /// Appends an address to an array of bytes
@@ -274,28 +277,5 @@ impl Frame {
             },
             Option::None => {},
         }
-    }
-
-    /// Returns the length of this frame when formatted as a MAC protocol data unit,
-    /// including the MAC header and MAC footer
-    fn mpdu_length(&self) -> usize {
-        let address_block_length = match self.addresses {
-            Addresses::Local{ ref source_address, ref destination } => {
-                let source_address_length = match *source_address {
-                    Address::Short(_) => 2,
-                    Address::Long(_) => 8,
-                };
-                // 2 bytes for PAN ID plus 2 or 8 bytes for address
-                let destination_address_length = 2 + match destination.address {
-                    Address::Short(_) => 2,
-                    Address::Long(_) => 8,
-                };
-                source_address_length + destination_address_length
-            },
-            Addresses::Full{ ref source, ref destination } => {
-                0
-            }
-        };
-        2 + 1 + address_block_length + self.payload_length + 2
     }
 }

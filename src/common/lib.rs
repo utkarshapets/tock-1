@@ -2,7 +2,7 @@
 
 #![crate_name = "common"]
 #![crate_type = "rlib"]
-#![feature(core,no_std,core_prelude,core_slice_ext)]
+#![feature(core,no_std)]
 #![no_std]
 
 extern crate core;
