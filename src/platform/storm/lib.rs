@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core,no_std,core_prelude)]
+#![feature(core,no_std)]
 
 extern crate core;
 extern crate common;
