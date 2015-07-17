@@ -9,7 +9,7 @@ extern crate hil;
 extern crate process;
 extern crate platform;
 
-mod apps;
+mod spi_test;
 
 pub mod syscall;
 
@@ -23,7 +23,7 @@ pub extern fn main() {
         platform::init()
     };
 
-    let app1 = unsafe { Process::create(apps::app1::_start).unwrap() };
+    let app1 = unsafe { Process::create(spi_test::spi_test::_start).unwrap() };
 
     let mut processes = [Shared::new(app1)];
 
