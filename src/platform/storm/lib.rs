@@ -40,7 +40,9 @@ pub struct Firestorm {
     chip: &'static mut sam4l::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
+    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    // SPI for testing
+    pub spi_master: &'static mut sam4l::usart::USART,
 }
 
 impl Firestorm {
@@ -79,6 +81,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
+        // SPI using USART 1
+        spi_master: &mut chip.usarts[1],
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
