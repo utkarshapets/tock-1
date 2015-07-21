@@ -175,6 +175,10 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
         }
     }
 
+    pub fn write_frame(frame: &frame::Frame) {
+        // TODO
+    }
+
     /// Writes the specified value to the specified register
     fn write_register(&mut self, register: registers::Register, value: u8) {
         // Byte 1: 1, 0, register address
@@ -218,7 +222,7 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
     /// Reads a frame from the framebuffer
     /// Returns the frame that was read.
     fn read_frame_buffer(&mut self) {
-
+        // TODO
     }
 
     /// Reads `data.len()` bytes from the RF230 SRAM starting at the specified address and stores
