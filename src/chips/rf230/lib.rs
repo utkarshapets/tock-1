@@ -116,7 +116,7 @@ pub struct RF230<S: 'static + SPI, GPIO: 'static + GPIOPin> {
 
 impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
     /// Creates an RF230 object using the provided SPI object and input/output pins
-    pub fn new(mut spi: &'static mut S, mut slave_select: &'static mut GPIO, irq: &'static mut GPIO,
+    pub fn new(mut spi: &'static mut S, mut slave_select: &'static mut GPIO,         irq: &'static mut GPIO,
         control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<S, GPIO> {
 
         // Set slave select high (not selected)
@@ -182,13 +182,13 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
     /// Writes the specified value to the specified register
     fn write_register(&mut self, register: registers::Register, value: u8) {
         // Byte 1: 1, 0, register address
-        let byte1 = SPICommand::RegisterWrite as u8 | register.address;
+        let byte1 = (SPICommand::RegisterWrite as u8) | register.address;
         let byte2 = register.clean_for_write(value);
         // Send two bytes, ignore returned values
 
         let _transaction = SPITransaction::new(self.slave_select);
-        self.spi.write(byte1);
-        self.spi.write(byte2);
+        self.spi.write_byte(byte1);
+        self.spi.write_byte(byte2);
     }
     /// Reads the specified register and returns its value
     fn read_register(&mut self, register: registers::Register) -> u8 {
@@ -196,8 +196,8 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
         let byte1 = SPICommand::RegisterRead as u8 | register.address;
         // Send the byte with the register address, read the value in the next byte
         let _transaction = SPITransaction::new(self.slave_select);
-        self.spi.write(byte1);
-        let result = self.spi.read();
+        self.spi.write_byte(byte1);
+        let result = self.spi.read_byte();
         result
     }
 
@@ -210,12 +210,12 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
         let length = data.len() as u8;
         let _transaction = SPITransaction::new(self.slave_select);
         // Write command
-        self.spi.write(SPICommand::FrameBufferWrite as u8);
+        self.spi.write_byte(SPICommand::FrameBufferWrite as u8);
         // Write length
-        self.spi.write(length);
+        self.spi.write_byte(length);
         // Write data
         for &byte in data {
-            self.spi.write(byte);
+            self.spi.write_byte(byte);
         }
     }
 
@@ -230,12 +230,12 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
     fn read_sram(&mut self, address: u8, data: &mut [u8]) {
         let _transaction = SPITransaction::new(self.slave_select);
         // Send read request
-        self.spi.write(SPICommand::SRAMRead as u8);
+        self.spi.write_byte(SPICommand::SRAMRead as u8);
         // Send address
-        self.spi.write(address);
+        self.spi.write_byte(address);
         // Read data
         for index in 0..data.len() {
-            data[index] = self.spi.read();
+            data[index] = self.spi.read_byte();
         }
     }
 
@@ -243,10 +243,10 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
     fn write_sram(&mut self, address: u8, data: &[u8]) {
         let _transaction = SPITransaction::new(self.slave_select);
         // Send write command
-        self.spi.write(SPICommand::SRAMWrite as u8);
-        self.spi.write(address);
+        self.spi.write_byte(SPICommand::SRAMWrite as u8);
+        self.spi.write_byte(address);
         for &byte in data {
-            self.spi.write(byte);
+            self.spi.write_byte(byte);
         }
     }
 

@@ -52,11 +52,11 @@ pub mod spi_test {
     pub fn _start() {
         init();
         loop {
-            wait();
+            puts("It's still working...\n");
         }
     }
 
     fn init() {
-        puts("It works!");
+        puts("It works!\n");
     }
 }

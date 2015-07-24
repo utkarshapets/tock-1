@@ -1,5 +1,6 @@
 use core::prelude::*;
 use core::intrinsics;
+use core::cmp::min;
 use hil::{uart, spi_master, Controller};
 use hil::uart::UART;
 use hil::uart::Parity;
@@ -270,7 +271,7 @@ impl spi_master::SPI for USART {
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
     }
-    fn write(&mut self, out_byte: u8) -> u8 {
+    fn write_byte(&mut self, out_byte: u8) -> u8 {
         // Wait for readiness
         while !self.tx_ready() || !self.rx_ready() {}
         // Load byte to write
@@ -281,7 +282,7 @@ impl spi_master::SPI for USART {
         // Return read value
         volatile!(self.regs.rhr) as u8
     }
-    fn read(&mut self) -> u8 {
+    fn read_byte(&mut self) -> u8 {
         // Wait for readiness
         while !self.tx_ready() || !self.rx_ready() {}
         // Load byte to write (0)
@@ -292,6 +293,34 @@ impl spi_master::SPI for USART {
         // Return read value
         volatile!(self.regs.rhr) as u8
     }
+
+    fn read<F>(&mut self, buffer: &mut [u8], callback: F) where F : Fn() {
+        // TODO: Make asynchronous
+        for byte in buffer {
+            *byte = self.read_byte();
+        }
+        callback();
+    }
+
+    fn write<F>(&mut self, buffer: &[u8], callback: F) where F : Fn() {
+        // TODO: Make asynchronous
+        for &byte in buffer {
+            self.write_byte(byte);
+        }
+        callback();
+    }
+
+    fn read_and_write<F>(&mut self, read_buffer: &mut [u8], write_buffer: &[u8], callback: F)
+        where F : Fn()
+    {
+        // TODO: Make asynchronous
+        let count = min(read_buffer.len(), write_buffer.len());
+        for i in 0..(count - 1) {
+            read_buffer[i] = self.write_byte(write_buffer[i]);
+        }
+        callback();
+    }
+
     fn enable_rx(&mut self) {
         volatile!(self.regs.cr = 1 << 4);
     }
