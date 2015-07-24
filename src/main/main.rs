@@ -34,6 +34,7 @@ pub extern fn main() {
     });
     platform.spi_master.enable_tx();
     platform.spi_master.enable_rx();
+    platform.spi_master.write(&[0b10101010], || {});
 
     let app1 = unsafe { Process::create(spi_test::spi_test::_start).unwrap() };
 
@@ -41,9 +42,8 @@ pub extern fn main() {
 
     loop {
         // Testing SPI
-        if platform.spi_master.tx_ready() {
-            platform.spi_master.write(0b10101010);
-        }
+
+        platform.spi_master.write(&[0b10101010], || {});
 
         unsafe {
             platform.service_pending_interrupts();

@@ -81,8 +81,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        // SPI using USART 1
-        spi_master: &mut chip.usarts[1],
+        // SPI using USART 2
+        spi_master: &mut chip.usarts[2],
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
