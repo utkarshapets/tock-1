@@ -83,7 +83,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
         // SPI using USART 2
-        spi_master: &mut chip.usarts[2],
+        spi_master: &mut chip.usarts[0],
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -92,14 +92,16 @@ pub unsafe fn init() -> &'static mut Firestorm {
     // SPI test
     // Configure pins
 
-    // PC11 as RXD
-    chip.pc11.configure(Some(sam4l::gpio::PeripheralFunction::B));
-    // PC12 as TXD
-    chip.pc12.configure(Some(sam4l::gpio::PeripheralFunction::B));
-    // PC08 as CLK
-    chip.pc08.configure(Some(sam4l::gpio::PeripheralFunction::B));
-    // PC07 as RTS
-    chip.pc07.configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // PB14 as RXD
+    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB15 as TXD
+    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB11 as TXD
+    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB13 as CLK
+    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB12 as RTS
+    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     firestorm.spi_master.init(hil::spi_master::SPIParams {
         baud_rate: 9600,
