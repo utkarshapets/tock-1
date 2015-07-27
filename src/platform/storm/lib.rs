@@ -88,32 +88,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
 
-
-    // SPI test
-    // Configure pins
-
-    // PB14 as RXD
-    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB15 as TXD
-    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB11 as TXD
-    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB13 as CLK
-    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB12 as RTS
-    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
-
-    firestorm.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 9600,
-        data_order: hil::spi_master::DataOrder::LSBFirst,
-        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
-        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
-    });
-    firestorm.spi_master.enable_tx();
-    firestorm.spi_master.enable_rx();
-    firestorm.spi_master.write(&[0b10101010], || {});
-    // End SPI test
-
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
         baud_rate: 115200,
@@ -134,5 +108,37 @@ pub unsafe fn init() -> &'static mut Firestorm {
     adc.sample(&mut REQ);
 
     firestorm.console.initialize();
+
+
+    // SPI test
+    // Configure pins
+
+    // PB14 as RXD
+    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB15 as TXD
+    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB11 as TXD
+    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB13 as CLK
+    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB12 as RTS
+    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
+
+    firestorm.console.putstr("Configuring SPI...");
+    firestorm.spi_master.init(hil::spi_master::SPIParams {
+        baud_rate: 9600,
+        data_order: hil::spi_master::DataOrder::LSBFirst,
+        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
+        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
+    });
+    firestorm.console.putstr(" done.\nEnabling TX...");
+    firestorm.spi_master.enable_tx();
+    firestorm.console.putstr(" done.\nEnabling RX...");
+    firestorm.spi_master.enable_rx();
+    firestorm.console.putstr(" done.\nWriting something...");
+    firestorm.spi_master.write(&[0b10101010], || {});
+    firestorm.console.putstr(" done.");
+    // End SPI test
+
     firestorm
 }
