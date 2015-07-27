@@ -12,6 +12,7 @@ extern crate sam4l;
 use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
+use hil::spi_master::SPI;
 
 pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
@@ -86,6 +87,30 @@ pub unsafe fn init() -> &'static mut Firestorm {
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
+
+
+    // SPI test
+    // Configure pins
+
+    // PC11 as RXD
+    chip.pc11.configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // PC12 as TXD
+    chip.pc12.configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // PC08 as CLK
+    chip.pc08.configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // PC07 as RTS
+    chip.pc07.configure(Some(sam4l::gpio::PeripheralFunction::B));
+
+    firestorm.spi_master.init(hil::spi_master::SPIParams {
+        baud_rate: 9600,
+        data_order: hil::spi_master::DataOrder::LSBFirst,
+        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
+        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
+    });
+    firestorm.spi_master.enable_tx();
+    firestorm.spi_master.enable_rx();
+    firestorm.spi_master.write(&[0b10101010], || {});
+    // End SPI test
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,

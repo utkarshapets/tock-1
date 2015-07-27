@@ -25,17 +25,6 @@ pub extern fn main() {
         platform::init()
     };
 
-    // SPI test
-    platform.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 9600,
-        data_order: hil::spi_master::DataOrder::LSBFirst,
-        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
-        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
-    });
-    platform.spi_master.enable_tx();
-    platform.spi_master.enable_rx();
-    platform.spi_master.write(&[0b10101010], || {});
-
     let app1 = unsafe { Process::create(spi_test::spi_test::_start).unwrap() };
 
     let mut processes = [Shared::new(app1)];
