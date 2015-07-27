@@ -273,7 +273,7 @@ impl spi_master::SPI for USART {
     }
     fn write_byte(&mut self, out_byte: u8) -> u8 {
         // Wait for readiness
-        while !self.tx_ready() || !self.rx_ready() {}
+        // while !self.tx_ready() || !self.rx_ready() {}
         // Load byte to write
         volatile!(self.regs.thr = out_byte as u32);
 
@@ -284,7 +284,7 @@ impl spi_master::SPI for USART {
     }
     fn read_byte(&mut self) -> u8 {
         // Wait for readiness
-        while !self.tx_ready() || !self.rx_ready() {}
+        // while !self.tx_ready() || !self.rx_ready() {}
         // Load byte to write (0)
         volatile!(self.regs.thr = 0 as u32);
 
