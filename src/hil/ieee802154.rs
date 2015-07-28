@@ -63,8 +63,12 @@ pub struct Frame {
     /// The number of this frame in a sequence
     /// Used to detect duplicate or dropped frames
     pub sequence_number: u8,
+    /// Source PAN ID
+    pub source_pan_id: Option<u16>,
     /// Source address
     pub source_address: Option<Address>,
+    /// Destination PAN ID
+    pub destination_pan_id: Option<u16>,
     /// Destination address
     pub destination_address: Option<Address>,
 
@@ -91,16 +95,16 @@ pub struct Params {
 /// A trait for transceivers that can send and receive 802.15.4 frames
 // Might need a better name
 pub trait Transceiver {
-    pub fn init(&mut self, params: Params);
+    fn init(&mut self, params: Params);
 
     /// Enables receiving of frames. When enabled, the client's `frame_received()` method
     /// will be called when a frame is received.
-    pub fn enable_rx(&mut self);
+    fn enable_rx(&mut self);
     /// Disables receiving of frames
-    pub fn disable_rx(&mut self);
+    fn disable_rx(&mut self);
 
     /// Sends the provided frame.
     /// Executes asynchronously and calls the client's `send_done()` method when done.
-    pub fn send(&mut self, frame: Frame);
+    fn send(&mut self, frame: Frame);
 
 }

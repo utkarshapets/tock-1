@@ -130,13 +130,14 @@ pub unsafe fn init() -> &'static mut Firestorm {
         data_order: hil::spi_master::DataOrder::LSBFirst,
         clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
         clock_phase: hil::spi_master::ClockPhase::SampleLeading,
+        client: None,
     });
     firestorm.console.putstr(" done.\nEnabling TX...");
     firestorm.spi_master.enable_tx();
     firestorm.console.putstr(" done.\nEnabling RX...");
     firestorm.spi_master.enable_rx();
     firestorm.console.putstr(" done.\nWriting something...");
-    firestorm.spi_master.write(&[0b10101010], || {});
+    firestorm.spi_master.write_byte(0b10101010);
     firestorm.console.putstr(" done.");
     // End SPI test
 

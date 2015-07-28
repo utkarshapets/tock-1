@@ -103,7 +103,8 @@ impl USART {
             regs: unsafe { intrinsics::transmute(address) },
             clock: Clock::PBA(pba_clock),
             nvic: nvic,
-            client: None
+            client: None,
+            spi_client: None,
         }
     }
 
@@ -300,31 +301,26 @@ impl spi_master::SPI for USART {
         volatile!(self.regs.rhr) as u8
     }
 
-    fn read<F>(&mut self, buffer: &mut [u8], callback: F) where F : Fn() {
+    fn read(&mut self, buffer: &mut [u8]) {
         // TODO: Make asynchronous
         for byte in buffer {
             *byte = self.read_byte();
         }
-        callback();
     }
 
-    fn write<F>(&mut self, buffer: &[u8], callback: F) where F : Fn() {
+    fn write(&mut self, buffer: &[u8]) {
         // TODO: Make asynchronous
         for &byte in buffer {
             self.write_byte(byte);
         }
-        callback();
     }
 
-    fn read_and_write<F>(&mut self, read_buffer: &mut [u8], write_buffer: &[u8], callback: F)
-        where F : Fn()
-    {
+    fn read_and_write(&mut self, read_buffer: &mut [u8], write_buffer: &[u8]) {
         // TODO: Make asynchronous
         let count = min(read_buffer.len(), write_buffer.len());
         for i in 0..(count - 1) {
             read_buffer[i] = self.write_byte(write_buffer[i]);
         }
-        callback();
     }
 
     fn enable_rx(&mut self) {

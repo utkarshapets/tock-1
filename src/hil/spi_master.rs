@@ -1,6 +1,7 @@
 //! Traits and parameters for SPI master communication
 
 use core::ops::Fn;
+use core::option::Option;
 
 /// Values for the ordering of bits
 #[derive(Copy, Clone)]
@@ -43,7 +44,6 @@ pub trait Reader {
 }
 
 /// Parameters for SPI communication
-#[derive(Copy, Clone)]
 pub struct SPIParams {
     /// The number of bits per second to send and receive
     pub baud_rate: u32,
@@ -54,7 +54,7 @@ pub struct SPIParams {
     /// The clock phase
     pub clock_phase: ClockPhase,
     /// The client to be notified when a read or write completes
-    pub client: &'static mut Reader,
+    pub client: Option<&'static mut Reader>,
 }
 
 /// A trait for types that allow SPI communication
