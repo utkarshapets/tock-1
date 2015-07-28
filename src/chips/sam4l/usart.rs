@@ -48,6 +48,7 @@ pub enum Location {
 pub struct USART {
     regs: &'static mut UsartRegisters,
     client: Option<&'static mut uart::Reader>,
+    spi_client: Option<&'static mut spi_master::Reader>,
     clock: Clock,
     nvic: nvic::NvicIdx,
 }
@@ -267,9 +268,14 @@ impl spi_master::SPI for USART {
         mode = mode | (0b11 << 6);
         // No parity
         mode = mode | (0b100 << 9);
-        self.set_mode(mode);
+        // Drive clock pin
+        mode = mode | (0b1 << 18);
+
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
+        self.set_mode(mode);
+        volatile!(self.regs.ttgr = 4);
+        self.enable_rx_interrupts();
     }
     fn write_byte(&mut self, out_byte: u8) -> u8 {
         // Wait for readiness
