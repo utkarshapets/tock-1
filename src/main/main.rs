@@ -32,7 +32,7 @@ pub extern fn main() {
     loop {
         // Testing SPI
 
-        platform.spi_master.write(&[0b10101010], || {});
+        platform.spi_master.write_byte(0b10101010);
 
         unsafe {
             platform.service_pending_interrupts();

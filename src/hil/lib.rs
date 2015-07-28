@@ -12,6 +12,7 @@ pub mod timer;
 pub mod uart;
 pub mod adc;
 pub mod spi_master;
+pub mod ieee802154;
 
 pub use process::Callback;
 

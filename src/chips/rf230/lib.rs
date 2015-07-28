@@ -5,15 +5,14 @@
 #![allow(dead_code)]
 
 mod registers;
-mod frame;
 
 extern crate core;
-use core::slice::SliceExt;
-use core::ops::Drop;
 extern crate common;
 extern crate hil;
+use core::prelude::*;
 use hil::spi_master::*;
 use hil::gpio::GPIOPin;
+use hil::ieee802154;
 
 ///
 /// Implements a driver for the Atmel AT86RF230 2.4 GHz transceiver
@@ -100,9 +99,9 @@ impl<'a, GPIO: GPIOPin> Drop for SPITransaction<'a, GPIO> {
 ///
 /// Provides access to an RF230
 ///
-pub struct RF230<S: 'static + SPI, GPIO: 'static + GPIOPin> {
+pub struct RF230<GPIO: 'static + GPIOPin> {
     /// SPI communication
-    spi: &'static mut S,
+    spi: &'static mut SPI,
     /// SPI slave select pin
     slave_select: &'static mut GPIO,
     /// IRQ signal (for interrupts sent by the RF230 to the processor)
@@ -112,23 +111,30 @@ pub struct RF230<S: 'static + SPI, GPIO: 'static + GPIOPin> {
     control: &'static mut GPIO,
     /// Reset signal
     reset: &'static mut GPIO,
+
+    /// Reader
+    client: Option<&'static mut ieee802154::Reader>,
 }
 
-impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
+impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
     /// Creates an RF230 object using the provided SPI object and input/output pins
-    pub fn new(mut spi: &'static mut S, mut slave_select: &'static mut GPIO,         irq: &'static mut GPIO,
-        control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<S, GPIO> {
+    pub fn new(mut spi: &'static mut SPI, mut slave_select: &'static mut GPIO, irq: &'static mut GPIO, control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<GPIO> {
 
         // Set slave select high (not selected)
         slave_select.enable_output();
         slave_select.set();
 
-        // Set up SPI
-        spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE });
-
         // TODO: Reset
 
-        RF230{ spi: spi, slave_select: slave_select, irq: irq, control: control, reset: reset }
+        let rf230 = RF230{ spi: spi, slave_select: slave_select, irq: irq, control: control, reset: reset, client: None };
+
+        // Set up SPI
+        spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE, client: None });
+        spi.enable_tx();
+        spi.enable_rx();
+
+
+        rf230
     }
 
     /// Returns the RF230 part number
@@ -175,9 +181,6 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
         }
     }
 
-    pub fn write_frame(frame: &frame::Frame) {
-        // TODO
-    }
 
     /// Writes the specified value to the specified register
     fn write_register(&mut self, register: registers::Register, value: u8) {
@@ -311,5 +314,34 @@ impl<S: 'static + SPI, GPIO: 'static + GPIOPin> RF230<S, GPIO> {
                 State::PLL_ON => return,
             }
         }
+    }
+}
+
+impl<GPIO: 'static + GPIOPin> Reader for RF230<GPIO> {
+    fn write_done(&mut self) {
+
+    }
+    fn read_done(&mut self) {
+
+    }
+    fn read_write_done(&mut self) {
+
+    }
+}
+
+impl<GPIO: 'static + GPIOPin> ieee802154::Transceiver for RF230<GPIO> {
+    fn init(&mut self, params: ieee802154::Params) {
+
+    }
+
+    fn enable_rx(&mut self) {
+
+    }
+    fn disable_rx(&mut self) {
+
+    }
+
+    fn send(&mut self, frame: ieee802154::Frame) {
+
     }
 }
