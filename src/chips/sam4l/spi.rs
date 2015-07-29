@@ -7,19 +7,19 @@ use core::intrinsics;
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
 struct SPIRegisters {
-    cr: u32,
-    mr: u32,
-    rdr: u32,
-    tdr: u32,
-    sr: u32,
-    ier: u32,
-    idr: u32,
-    imr: u32,
-    reserved0: [u32, 5],
-    csr0: u32,
-    csr1: u32,
-    csr2: u32,
-    csr3: u32,
-    reserved1: u32,
-    
+    cr: u32, // 0x0
+    mr: u32, // 0x4
+    rdr: u32, // 0x8
+    tdr: u32, // 0xC
+    sr: u32, // 0x10
+    ier: u32, // 0x14
+    idr: u32, // 0x18
+    imr: u32, // 0x1C
+    reserved0: [u32, 4], // 0x20, 0x24, 0x28, 0x2C
+    csr0: u32, // 0x30
+    csr1: u32, // 0x34
+    csr2: u32, // 0x38
+    csr3: u32, // 0x3C
+    reserved1: u32, // 0x40
+    // TODO
 }
