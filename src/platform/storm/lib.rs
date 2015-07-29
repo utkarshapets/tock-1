@@ -126,7 +126,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     firestorm.console.putstr("Configuring SPI...");
     firestorm.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 9600,
+        baud_rate: 115200,
         data_order: hil::spi_master::DataOrder::LSBFirst,
         clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
         clock_phase: hil::spi_master::ClockPhase::SampleLeading,

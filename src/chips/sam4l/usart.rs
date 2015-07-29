@@ -12,29 +12,30 @@ pub static mut USART3_INTERRUPT : bool = false;
 
 #[repr(C, packed)]
 struct UsartRegisters {
-    cr: u32,
-    mr: u32,
-    ier: u32,
-    idr: u32,
-    imr: u32,
-    csr: u32,
-    rhr: u32,
-    thr: u32,
+    cr: u32, // 0
+    mr: u32, // 0x4
+    ier: u32, // 0x8
+    idr: u32, // 0xC
+    imr: u32, // 0x10
+    csr: u32, // 0x14
+    rhr: u32, // 0x18
+    thr: u32, // 0x1C
     brgr: u32, // 0x20
-    rtor: u32,
-    ttgr: u32,
-    reserved0: [u32; 5],
+    rtor: u32, // 0x24
+    ttgr: u32, // 0x28
+    reserved0: [u32; 5], // 0x2C, 0x30, 0x34, 0x38, 0x3C
     fidi: u32, // 0x40
-    ner: u32,
-    reserved1: u32,
-    ifr: u32,
-    man: u32,
-    linmr: u32,
-    linir: u32,
-    linbrr: u32,
-    wpmr: u32,
-    wpsr: u32,
-    version: u32
+    ner: u32, // 0x44
+    reserved1: u32, // 0x48
+    ifr: u32, // 0x4C
+    man: u32, // 0x50
+    linmr: u32, // 0x54
+    linir: u32, // 0x58
+    linbrr: u32, // 0x5C
+    reserved2: [u32; 34],
+    wpmr: u32, // 0x60
+    wpsr: u32, // 0x64
+    version: u32 // 0x68
 }
 
 const SIZE: usize = 0x4000;
