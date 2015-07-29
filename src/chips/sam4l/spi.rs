@@ -15,11 +15,19 @@ struct SPIRegisters {
     ier: u32, // 0x14
     idr: u32, // 0x18
     imr: u32, // 0x1C
-    reserved0: [u32, 4], // 0x20, 0x24, 0x28, 0x2C
+    reserved0: [u32; 4], // 0x20, 0x24, 0x28, 0x2C
     csr0: u32, // 0x30
     csr1: u32, // 0x34
     csr2: u32, // 0x38
     csr3: u32, // 0x3C
-    reserved1: u32, // 0x40
-    // TODO
+    reserved1: [u32; 41], // 0x40 - 0xE0
+    wpcr: u32, // 0xE4
+    wpsr: u32, // 0xE8
+    reserved2: [u32; 3] // 0xEC - 0xF4
+    features: u32, // 0xF8
+    version: u32, // 0xFC
+}
+
+pub struct SPI {
+    
 }
