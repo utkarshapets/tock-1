@@ -247,7 +247,6 @@ pub unsafe extern fn USART3_Handler() {
     nvic::disable(nvic::NvicIdx::USART3);
 }
 
-
 // SPI master implementation
 impl spi_master::SPI for USART {
     fn init(&mut self, params: spi_master::SPIParams) {
@@ -277,11 +276,11 @@ impl spi_master::SPI for USART {
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
         volatile!(self.regs.ttgr = 4);
-        self.enable_rx_interrupts();
+        //self.enable_rx_interrupts();
     }
     fn write_byte(&mut self, out_byte: u8) -> u8 {
         // Wait for readiness
-        while !self.tx_ready() || !self.rx_ready() {}
+        while !self.tx_ready() {}
         // Load byte to write
         volatile!(self.regs.thr = out_byte as u32);
 
@@ -292,7 +291,7 @@ impl spi_master::SPI for USART {
     }
     fn read_byte(&mut self) -> u8 {
         // Wait for readiness
-        while !self.tx_ready() || !self.rx_ready() {}
+        while !self.tx_ready() {}
         // Load byte to write (0)
         volatile!(self.regs.thr = 0 as u32);
 
