@@ -13,7 +13,10 @@ use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 use hil::spi_master::SPI;
+<<<<<<< HEAD
 use hil::gpio::GPIOPin;
+=======
+>>>>>>> f1e4dd93ff991a519af2e58a05ae36d6286f624e
 
 pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
@@ -81,6 +84,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
+        // SPI using USART 2
+        spi_master: &mut chip.usarts[0],
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -114,5 +119,40 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     firestorm.console.initialize();
 
+<<<<<<< HEAD
+=======
+
+    // SPI test
+    // Configure pins
+
+    // PB14 as RXD
+    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB15 as TXD
+    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB11 as TXD
+    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB13 as CLK
+    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB12 as RTS
+    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
+
+    firestorm.console.putstr("Configuring SPI...");
+    firestorm.spi_master.init(hil::spi_master::SPIParams {
+        baud_rate: 115200,
+        data_order: hil::spi_master::DataOrder::LSBFirst,
+        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
+        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
+        client: None,
+    });
+    firestorm.console.putstr(" done.\nEnabling TX...");
+    firestorm.spi_master.enable_tx();
+    firestorm.console.putstr(" done.\nEnabling RX...");
+    firestorm.spi_master.enable_rx();
+    firestorm.console.putstr(" done.\nWriting something...");
+    firestorm.spi_master.write_byte(0b10101010);
+    firestorm.console.putstr(" done.");
+    // End SPI test
+
+>>>>>>> f1e4dd93ff991a519af2e58a05ae36d6286f624e
     firestorm
 }

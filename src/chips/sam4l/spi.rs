@@ -143,7 +143,7 @@ impl spi_master::SPI for SPI {
 
     }
 
-    
+
     fn enable_rx(&mut self) {
 
     }
