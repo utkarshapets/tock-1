@@ -13,10 +13,7 @@ use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 use hil::spi_master::SPI;
-<<<<<<< HEAD
 use hil::gpio::GPIOPin;
-=======
->>>>>>> f1e4dd93ff991a519af2e58a05ae36d6286f624e
 
 pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
@@ -46,6 +43,8 @@ pub struct Firestorm {
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    // SPI for testing
+    pub spi_master: &'static mut sam4l::usart::USART,
 }
 
 impl Firestorm {
@@ -119,9 +118,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     firestorm.console.initialize();
 
-<<<<<<< HEAD
-=======
-
     // SPI test
     // Configure pins
 
@@ -153,6 +149,5 @@ pub unsafe fn init() -> &'static mut Firestorm {
     firestorm.console.putstr(" done.");
     // End SPI test
 
->>>>>>> f1e4dd93ff991a519af2e58a05ae36d6286f624e
     firestorm
 }
