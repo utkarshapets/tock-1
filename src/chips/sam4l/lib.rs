@@ -44,12 +44,14 @@ pub mod pm;
 pub mod gpio;
 pub mod usart;
 pub mod adc;
+pub mod spi;
 
 pub struct Sam4l {
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
     pub i2c: [i2c::I2CDevice; 4],
+    pub spi: spi::SPI,
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -104,6 +106,7 @@ impl Sam4l {
                 i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Fast400k),
                 i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Fast400k)
             ],
+            spi: spi::SPI::new(),
             pa00: gpio::GPIOPin::new(gpio::Pin::PA00),
             pa01: gpio::GPIOPin::new(gpio::Pin::PA01),
             pa02: gpio::GPIOPin::new(gpio::Pin::PA02),

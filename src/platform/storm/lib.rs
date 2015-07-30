@@ -13,6 +13,7 @@ use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 use hil::spi_master::SPI;
+use hil::gpio::GPIOPin;
 
 pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
@@ -42,8 +43,6 @@ pub struct Firestorm {
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
-    // SPI for testing
-    pub spi_master: &'static mut sam4l::usart::USART,
 }
 
 impl Firestorm {
@@ -82,8 +81,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        // SPI using USART 2
-        spi_master: &mut chip.usarts[0],
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -94,6 +91,14 @@ pub unsafe fn init() -> &'static mut Firestorm {
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
+
+    // Set pins for SPI testing
+    // PC06 as SCLK
+    chip.pc06.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC04 as MISO
+    chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC05 as MOSI
+    chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
     chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -108,38 +113,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
     adc.sample(&mut REQ);
 
     firestorm.console.initialize();
-
-
-    // SPI test
-    // Configure pins
-
-    // PB14 as RXD
-    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB15 as TXD
-    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB11 as TXD
-    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB13 as CLK
-    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB12 as RTS
-    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
-
-    firestorm.console.putstr("Configuring SPI...");
-    firestorm.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 115200,
-        data_order: hil::spi_master::DataOrder::LSBFirst,
-        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
-        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
-        client: None,
-    });
-    firestorm.console.putstr(" done.\nEnabling TX...");
-    firestorm.spi_master.enable_tx();
-    firestorm.console.putstr(" done.\nEnabling RX...");
-    firestorm.spi_master.enable_rx();
-    firestorm.console.putstr(" done.\nWriting something...");
-    firestorm.spi_master.write_byte(0b10101010);
-    firestorm.console.putstr(" done.");
-    // End SPI test
 
     firestorm
 }
