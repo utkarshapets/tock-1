@@ -82,6 +82,17 @@ fn print_binary(value: u32) -> [u8; 32] {
     string
 }
 
+fn print_register<U: hil::uart::UART>(console: &mut drivers::console::Console<U>, name: &str, reg: &'static u32) {
+    use core::intrinsics;
+    console.putstr(name);
+    console.putstr(": ");
+    let bits = print_binary( unsafe { intrinsics::volatile_load(reg) });
+    for &bit in bits.iter() {
+        console.putbytes(&[bit]);
+    }
+    console.putstr("\n");
+}
+
 pub unsafe fn init() -> &'static mut Firestorm {
     use core::intrinsics;
     use sam4l::pm;
@@ -136,61 +147,34 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
     // PC05 as MOSI
     chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC00 as slave select 1
+    chip.pc00.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
 
-    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));
+    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
+    firestorm.spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
 
-    intrinsics::volatile_store(&mut chip.spi.regs.cr, 1);
-    let csr: u32 = 10 << 8;
-    intrinsics::volatile_store(&mut chip.spi.regs.csr0, csr);
-    // Disable mode fault detection (open drain outputs do not seem to be supported)
-    let mut mode: u32 = 1 << 4;
-    // Master mode
-    mode |= 1;
-    intrinsics::volatile_store(&mut chip.spi.regs.mr, mode);
-
-    loop {
-        let sr: u32 = intrinsics::volatile_load(&mut chip.spi.regs.sr);
-        let status_string = print_binary(sr);
-        firestorm.console.putbytes(&status_string);
-        firestorm.console.putstr("\n");
-        if ((sr >> 16) & 1) == 1 {
-            firestorm.console.putstr("Enabled\n");
-        }
-        else {
-            // Not enabled
-            // Enable
-            intrinsics::volatile_store(&mut chip.spi.regs.cr, 1);
-        }
-        intrinsics::volatile_store(&mut chip.spi.regs.tdr, 'A' as u32);
-    }
-
-    // End SPI testing
-
-    // SPI (USART) test
-    // Configure pins
-
-    // PC26 as RXD
-    chip.pc26.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC27 as TXD
-    chip.pc27.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC25 as CLK
-    chip.pc25.configure(Some(sam4l::gpio::PeripheralFunction::A));
-
-    firestorm.console.putstr("Configuring SPI...");
-    firestorm.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 9600,
+    firestorm.spi.init(hil::spi_master::SPIParams {
+        baud_rate: 8000000,
         data_order: hil::spi_master::DataOrder::LSBFirst,
         clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
         clock_phase: hil::spi_master::ClockPhase::SampleLeading,
         client: None,
     });
-    firestorm.console.putstr(" done.\nEnabling...");
-    firestorm.spi_master.enable();
-    firestorm.console.putstr(" done.\nWriting something...");
-    firestorm.spi_master.write_byte(0b10101010);
-    firestorm.console.putstr(" done.");
-    // End SPI test
+    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
+    firestorm.spi.enable();
+    print_register(&mut firestorm.console, "CSR0", &firestorm.spi.regs.csr0);
+    print_register(&mut firestorm.console, "CSR1", &firestorm.spi.regs.csr1);
+
+    let mut i: u8 = 0;
+    loop {
+        firestorm.spi.write_byte(i);
+        i += 1;
+    }
+
+    // End SPI testing
+
 
     firestorm
 }
