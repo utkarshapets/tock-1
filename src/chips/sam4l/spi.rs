@@ -74,8 +74,6 @@ pub struct Status {
 pub struct SPI {
     /// Registers
     regs: &'static mut SPIRegisters,
-    /// Current active peripheral
-    active: Peripheral,
     /// Client
     client: Option<&'static mut Reader>,
 }
@@ -88,7 +86,6 @@ impl SPI {
         unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
         SPI {
             regs: unsafe{ intrinsics::transmute(BASE_ADDRESS) },
-            active: Peripheral::Peripheral0,
             client: None,
         }
     }
@@ -127,12 +124,24 @@ impl SPI {
 
     /// Returns the currently active peripheral
     pub fn get_active_peripheral(&self) -> Peripheral {
-        self.active
+        let mr = volatile!(self.regs.mr);
+        let pcs = (mr >> 16) & 0xF;
+        // Split into bits for matching
+        let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
+        match pcs_bits {
+            (_, _, _, 0) => Peripheral::Peripheral0,
+            (_, _, 0, 1) => Peripheral::Peripheral1,
+            (_, 0, 1, 1) => Peripheral::Peripheral2,
+            (0, 1, 1, 1) => Peripheral::Peripheral3,
+            _ => {
+                // Invalid configuration
+                // ???
+                Peripheral::Peripheral0
+            }
+        }
     }
     /// Sets the active peripheral
     pub fn set_active_peripheral(&mut self, peripheral: Peripheral) {
-        self.active = peripheral;
-
         let peripheral_number: u32 = match peripheral {
             Peripheral::Peripheral0 => 0b0000,
             Peripheral::Peripheral1 => 0b0001,
