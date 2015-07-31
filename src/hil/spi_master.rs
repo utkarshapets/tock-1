@@ -58,6 +58,13 @@ pub struct SPIParams {
 }
 
 /// A trait for types that allow SPI communication
+///
+/// Using an SPI implementation normally involves three steps:
+///
+/// 1. Call the init method and specifiy parameters for communication
+/// 2. Call the enable method
+/// 3. Read and write data
+/// 
 pub trait SPI {
     /// Configures an object for communication as an SPI master
     fn init(&mut self, params: SPIParams);

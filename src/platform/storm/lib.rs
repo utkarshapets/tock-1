@@ -147,14 +147,16 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
     // PC05 as MOSI
     chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC00 as slave select 1
+    // PC00 as slave select 2
     chip.pc00.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC02 as slave select 1
+    chip.pc02.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.
+    // The primary function column of the Storm pin reference is incorrect,
+    // but the A column is correct.
+    // PC02 is chip select 1, and PC00 is chip select 2.
 
-
-    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
     firestorm.spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
-    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
-
     firestorm.spi.init(hil::spi_master::SPIParams {
         baud_rate: 8000000,
         data_order: hil::spi_master::DataOrder::LSBFirst,
@@ -162,10 +164,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
         clock_phase: hil::spi_master::ClockPhase::SampleLeading,
         client: None,
     });
-    print_register(&mut firestorm.console, "MR", &firestorm.spi.regs.mr);
     firestorm.spi.enable();
-    print_register(&mut firestorm.console, "CSR0", &firestorm.spi.regs.csr0);
-    print_register(&mut firestorm.console, "CSR1", &firestorm.spi.regs.csr1);
 
     let mut i: u8 = 0;
     loop {

@@ -10,22 +10,22 @@ use hil::spi_master::Reader;
 
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
-pub struct SPIRegisters {
-    pub cr: u32, // 0x0
-    pub mr: u32, // 0x4
-    pub rdr: u32, // 0x8
-    pub tdr: u32, // 0xC
-    pub sr: u32, // 0x10
+struct SPIRegisters {
+    cr: u32, // 0x0
+    mr: u32, // 0x4
+    rdr: u32, // 0x8
+    tdr: u32, // 0xC
+    sr: u32, // 0x10
     ier: u32, // 0x14
     idr: u32, // 0x18
     imr: u32, // 0x1C
     reserved0: [u32; 4], // 0x20, 0x24, 0x28, 0x2C
-    pub csr0: u32, // 0x30
-    pub csr1: u32, // 0x34
+    csr0: u32, // 0x30
+    csr1: u32, // 0x34
     csr2: u32, // 0x38
     csr3: u32, // 0x3C
     reserved1: [u32; 41], // 0x40 - 0xE0
-    pub wpcr: u32, // 0xE4
+    wpcr: u32, // 0xE4
     wpsr: u32, // 0xE8
     reserved2: [u32; 3], // 0xEC - 0xF4
     features: u32, // 0xF8
@@ -64,12 +64,19 @@ pub struct Status {
 /// Supports four peripherals. Each peripheral can have different settings.
 ///
 /// The init, read, and write methods act on the currently selected peripheral.
+/// The init method can be safely called more than once to configure different peripherals:
 ///
-///
+///     spi.set_active_peripheral(Peripheral::Peripheral0);
+///     spi.init(/* Parameters for peripheral 0 */);
+///     spi.set_active_peripheral(Peripheral::Peripheral1);
+///     spi.init(/* Parameters for peripheral 1 */);
 ///
 pub struct SPI {
     /// Registers
-    pub regs: &'static mut SPIRegisters,
+    regs: &'static mut SPIRegisters,
+    /// Current active peripheral
+    active: Peripheral,
+    /// Client
     client: Option<&'static mut Reader>,
 }
 
@@ -81,6 +88,7 @@ impl SPI {
         unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
         SPI {
             regs: unsafe{ intrinsics::transmute(BASE_ADDRESS) },
+            active: Peripheral::Peripheral0,
             client: None,
         }
     }
@@ -118,26 +126,13 @@ impl SPI {
     }
 
     /// Returns the currently active peripheral
-    pub fn get_active_peripheral(&mut self) -> Peripheral {
-        let mr = volatile!(self.regs.mr);
-        let pcs = (mr >> 16) & 0xF;
-        // Split into bits for matching
-        let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
-        match pcs_bits {
-            (_, _, _, 0) => Peripheral::Peripheral0,
-            (_, _, 0, 1) => Peripheral::Peripheral1,
-            (_, 0, 1, 1) => Peripheral::Peripheral2,
-            (0, 1, 1, 1) => Peripheral::Peripheral3,
-            _ => {
-                // Invalid configuration
-                // Reset to 0
-                self.set_active_peripheral(Peripheral::Peripheral0);
-                Peripheral::Peripheral0
-            }
-        }
+    pub fn get_active_peripheral(&self) -> Peripheral {
+        self.active
     }
     /// Sets the active peripheral
     pub fn set_active_peripheral(&mut self, peripheral: Peripheral) {
+        self.active = peripheral;
+
         let peripheral_number: u32 = match peripheral {
             Peripheral::Peripheral0 => 0b0000,
             Peripheral::Peripheral1 => 0b0001,
@@ -171,7 +166,7 @@ impl SPI {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn read_active_csr(&mut self) -> u32 {
+    fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => volatile!(self.regs.csr0),
             Peripheral::Peripheral1 => volatile!(self.regs.csr1),
@@ -194,11 +189,20 @@ impl SPI {
 impl spi_master::SPI for SPI {
     fn init(&mut self, params: spi_master::SPIParams) {
         self.client = params.client;
-
-        self.set_active_peripheral(Peripheral::Peripheral0);
         self.set_baud_rate(params.baud_rate);
 
-        // TODO: Clock phase and polarity
+        let mut csr = self.read_active_csr();
+        // Clock polarity
+        match params.clock_polarity {
+            spi_master::ClockPolarity::IdleHigh => csr |= 1, // Set bit 0
+            spi_master::ClockPolarity::IdleLow => csr &= 0xFFFFFFFE, // Clear bit 0
+        };
+        // Clock phase
+        match params.clock_phase {
+            spi_master::ClockPhase::SampleTrailing => csr |= (1 << 1), // Set bit 1
+            spi_master::ClockPhase::SampleLeading => csr &= 0xFFFFFFFD, // Clear bit 1
+        }
+        self.write_active_csr(csr);
 
         let mut mode = volatile!(self.regs.mr);
         // Enable master mode
