@@ -45,6 +45,8 @@ pub struct Firestorm {
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
     // SPI for testing
     pub spi_master: &'static mut sam4l::usart::USART,
+    // Non-USART SPI for testing
+    pub spi: &'static mut sam4l::spi::SPI,
 }
 
 impl Firestorm {
@@ -69,7 +71,21 @@ impl Firestorm {
 
 }
 
+fn print_binary(value: u32) -> [u8; 32] {
+    let mut string: [u8; 32] = ['0' as u8; 32];
+    for i in 0..31 {
+        let bit = (value >> i) & 1;
+        if bit == 1 {
+            string[31 - i] = '1' as u8;
+        }
+    }
+    string
+}
+
 pub unsafe fn init() -> &'static mut Firestorm {
+    use core::intrinsics;
+    use sam4l::pm;
+
     CHIP = Some(sam4l::Sam4l::new());
     let chip = CHIP.as_mut().unwrap();
 
@@ -83,8 +99,9 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        // SPI using USART 2
-        spi_master: &mut chip.usarts[0],
+        // SPI using USART 1
+        spi_master: &mut chip.usarts[1],
+        spi: &mut chip.spi,
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -95,14 +112,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
-
-    // Set pins for SPI testing
-    // PC06 as SCLK
-    chip.pc06.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC04 as MISO
-    chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC05 as MOSI
-    chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
     chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -118,32 +127,66 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     firestorm.console.initialize();
 
-    // SPI test
+
+
+    // Set pins for SPI testing
+    // PC06 as SCLK
+    chip.pc06.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC04 as MISO
+    chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC05 as MOSI
+    chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
+
+
+    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));
+
+    intrinsics::volatile_store(&mut chip.spi.regs.cr, 1);
+    let csr: u32 = 10 << 8;
+    intrinsics::volatile_store(&mut chip.spi.regs.csr0, csr);
+    // Disable mode fault detection (open drain outputs do not seem to be supported)
+    let mut mode: u32 = 1 << 4;
+    // Master mode
+    mode |= 1;
+    intrinsics::volatile_store(&mut chip.spi.regs.mr, mode);
+
+    loop {
+        let sr: u32 = intrinsics::volatile_load(&mut chip.spi.regs.sr);
+        let status_string = print_binary(sr);
+        firestorm.console.putbytes(&status_string);
+        firestorm.console.putstr("\n");
+        if ((sr >> 16) & 1) == 1 {
+            firestorm.console.putstr("Enabled\n");
+        }
+        else {
+            // Not enabled
+            // Enable
+            intrinsics::volatile_store(&mut chip.spi.regs.cr, 1);
+        }
+        intrinsics::volatile_store(&mut chip.spi.regs.tdr, 'A' as u32);
+    }
+
+    // End SPI testing
+
+    // SPI (USART) test
     // Configure pins
 
-    // PB14 as RXD
-    chip.pb14.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB15 as TXD
-    chip.pb15.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB11 as TXD
-    chip.pb11.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB13 as CLK
-    chip.pb13.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PB12 as RTS
-    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC26 as RXD
+    chip.pc26.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC27 as TXD
+    chip.pc27.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC25 as CLK
+    chip.pc25.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     firestorm.console.putstr("Configuring SPI...");
     firestorm.spi_master.init(hil::spi_master::SPIParams {
-        baud_rate: 115200,
+        baud_rate: 9600,
         data_order: hil::spi_master::DataOrder::LSBFirst,
         clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
         clock_phase: hil::spi_master::ClockPhase::SampleLeading,
         client: None,
     });
-    firestorm.console.putstr(" done.\nEnabling TX...");
-    firestorm.spi_master.enable_tx();
-    firestorm.console.putstr(" done.\nEnabling RX...");
-    firestorm.spi_master.enable_rx();
+    firestorm.console.putstr(" done.\nEnabling...");
+    firestorm.spi_master.enable();
     firestorm.console.putstr(" done.\nWriting something...");
     firestorm.spi_master.write_byte(0b10101010);
     firestorm.console.putstr(" done.");

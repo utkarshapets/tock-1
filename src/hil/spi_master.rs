@@ -85,12 +85,8 @@ pub trait SPI {
     /// done.
     fn read_and_write(&mut self, read_buffer: &mut [u8], write_buffer: &[u8]);
 
-    /// Enables receive functionality
-    fn enable_rx(&mut self);
-    /// Disables receive functionality
-    fn disable_rx(&mut self);
-    /// Enables transmit functionality
-    fn enable_tx(&mut self);
-    /// Disables transmit functionality
-    fn disable_tx(&mut self);
+    /// Enables
+    fn enable(&mut self);
+    /// Disables
+    fn disable(&mut self);
 }

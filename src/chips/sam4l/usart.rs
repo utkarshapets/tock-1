@@ -326,19 +326,14 @@ impl spi_master::SPI for USART {
         // TODO: Callback
     }
 
-    fn enable_rx(&mut self) {
+    fn enable(&mut self) {
         volatile!(self.regs.cr = 1 << 4);
-    }
-
-    fn disable_rx(&mut self) {
-        volatile!(self.regs.cr = 1 << 5);
-    }
-
-    fn enable_tx(&mut self) {
         volatile!(self.regs.cr = 1 << 6);
     }
 
-    fn disable_tx(&mut self) {
+    fn disable(&mut self) {
+        volatile!(self.regs.cr = 1 << 5);
         volatile!(self.regs.cr = 1 << 7);
     }
+
 }

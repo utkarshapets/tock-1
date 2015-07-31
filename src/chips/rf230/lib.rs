@@ -130,8 +130,7 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
         // Set up SPI
         spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE, client: None });
-        spi.enable_tx();
-        spi.enable_rx();
+        spi.enable();
 
 
         rf230

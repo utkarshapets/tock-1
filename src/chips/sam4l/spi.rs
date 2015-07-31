@@ -1,6 +1,7 @@
 use core::prelude::*;
 use core::intrinsics;
 
+use pm;
 use hil::spi_master;
 
 // Driver for the SPI hardware (seperate from the USARTS, described in chapter 26 of the
@@ -8,37 +9,37 @@ use hil::spi_master;
 
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
-struct SPIRegisters {
-    cr: u32, // 0x0
-    mr: u32, // 0x4
-    rdr: u32, // 0x8
-    tdr: u32, // 0xC
-    sr: u32, // 0x10
+pub struct SPIRegisters {
+    pub cr: u32, // 0x0
+    pub mr: u32, // 0x4
+    pub rdr: u32, // 0x8
+    pub tdr: u32, // 0xC
+    pub sr: u32, // 0x10
     ier: u32, // 0x14
     idr: u32, // 0x18
     imr: u32, // 0x1C
     reserved0: [u32; 4], // 0x20, 0x24, 0x28, 0x2C
-    csr0: u32, // 0x30
+    pub csr0: u32, // 0x30
     csr1: u32, // 0x34
     csr2: u32, // 0x38
     csr3: u32, // 0x3C
     reserved1: [u32; 41], // 0x40 - 0xE0
-    wpcr: u32, // 0xE4
+    pub wpcr: u32, // 0xE4
     wpsr: u32, // 0xE8
     reserved2: [u32; 3], // 0xEC - 0xF4
     features: u32, // 0xF8
     version: u32, // 0xFC
 }
 
-const SPI_BASE_ADDRESS: u32 = 0x40008000;
+const BASE_ADDRESS: u32 = 0x40008000;
 
 /// Values for selected peripherals
 #[derive(Copy,Clone)]
 pub enum Peripheral {
-    Peripheral0,
-    Peripheral1,
-    Peripheral2,
-    Peripheral3,
+    Peripheral0 = 0b0000,
+    Peripheral1 = 0b0001,
+    Peripheral2 = 0b0011,
+    Peripheral3 = 0b0111,
 }
 
 ///
@@ -51,17 +52,14 @@ pub enum Peripheral {
 ///
 pub struct SPI {
     /// Registers
-    regs: &'static mut SPIRegisters,
-    /// The current active peripheral
-    active: Peripheral,
+    pub regs: &'static mut SPIRegisters,
 }
 
 impl SPI {
     /// Creates a new SPI object, with peripheral 0 selected
     pub fn new() -> SPI {
         SPI {
-            regs: unsafe{ intrinsics::transmute(SPI_BASE_ADDRESS) },
-            active: Peripheral::Peripheral0
+            regs: unsafe{ intrinsics::transmute(BASE_ADDRESS) }
         }
     }
 
@@ -80,25 +78,49 @@ impl SPI {
             scbr += 1;
         }
         let mut csr = self.read_active_csr();
-        let csr_mask: u32 = 0b00000000000000001111111100000000;
+        let csr_mask: u32 = 0xFF00;
         // Clear, then write CSR bits
         csr |= !csr_mask;
-        csr |= ((scbr & 0b11111111) << 8);
+        csr |= ((scbr & 0xFF) << 8);
         self.write_active_csr(csr);
     }
 
     /// Returns the currently active peripheral
-    pub fn get_active_peripheral(&self) -> Peripheral {
-        self.active
+    pub fn get_active_peripheral(&mut self) -> Peripheral {
+        let mr = volatile!(self.regs.mr);
+        let pcs = (mr >> 16) & 0xF;
+        // Split into bits for matching
+        let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
+        match pcs_bits {
+            (_, _, _, 0) => Peripheral::Peripheral0,
+            (_, _, 0, 1) => Peripheral::Peripheral1,
+            (_, 0, 1, 1) => Peripheral::Peripheral2,
+            (0, 1, 1, 1) => Peripheral::Peripheral3,
+            _ => {
+                // Invalid configuration
+                // Reset to 0
+                self.set_active_peripheral(Peripheral::Peripheral0);
+                Peripheral::Peripheral0
+            }
+        }
     }
     /// Sets the active peripheral
     pub fn set_active_peripheral(&mut self, peripheral: Peripheral) {
-        self.active = peripheral;
+        let mut mr = volatile!(self.regs.mr);
+        // Clear and set MR.PCS
+        mr |= !0x000F0000;
+        mr |= (peripheral as u32) << 16;
+        volatile!(self.regs.mr = mr);
+    }
+
+    /// Returns true if the SPI hardware is enabled, otherwise false
+    pub fn is_enabled(&self) -> bool {
+        ((volatile!(self.regs.sr) >> 16) & 1) == 1
     }
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn read_active_csr(&self) -> u32 {
+    fn read_active_csr(&mut self) -> u32 {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => volatile!(self.regs.csr0),
             Peripheral::Peripheral1 => volatile!(self.regs.csr1),
@@ -120,15 +142,29 @@ impl SPI {
 
 impl spi_master::SPI for SPI {
     fn init(&mut self, params: spi_master::SPIParams) {
+        // Enable clock
+        unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
+
         self.set_baud_rate(params.baud_rate);
+
+        // Enable master mode
+        let mut mode: u32 = 1;
+        // Disable mode fault detection (open drain outputs do not seem to be supported)
+        mode |= 1 << 4;
+        volatile!(self.regs.mr = mode);
     }
 
     fn write_byte(&mut self, out_byte: u8) -> u8 {
-        0
+        let tdr = out_byte as u32;
+        volatile!(self.regs.tdr = tdr);
+        // Wait for receive data register full
+        while (volatile!(self.regs.sr & 1) != 1) {}
+        // Return read value
+        volatile!(self.regs.rdr) as u8
     }
 
     fn read_byte(&mut self) -> u8 {
-        0
+        self.write_byte(0)
     }
 
     fn read(&mut self, buffer: &mut [u8]) {
@@ -144,19 +180,11 @@ impl spi_master::SPI for SPI {
     }
 
 
-    fn enable_rx(&mut self) {
-
+    fn enable(&mut self) {
+        volatile!(self.regs.cr = 0b1);
     }
 
-    fn disable_rx(&mut self) {
-
-    }
-
-    fn enable_tx(&mut self) {
-
-    }
-
-    fn disable_tx(&mut self) {
-
+    fn disable(&mut self) {
+        volatile!(self.regs.cr = 0b10);
     }
 }
