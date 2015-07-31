@@ -13,10 +13,9 @@ use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 use hil::spi_master::SPI;
-use hil::gpio::GPIOPin;
+use sam4l::*;
 
-pub static mut ADC  : Option<sam4l::adc::Adc> = None;
-pub static mut CHIP : Option<sam4l::Sam4l> = None;
+pub static mut ADC  : Option<adc::Adc> = None;
 
 pub struct TestRequest {
   chan: u8
@@ -39,7 +38,7 @@ pub static mut REQ: TestRequest = TestRequest {
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
 pub struct Firestorm {
-    chip: &'static mut sam4l::Sam4l,
+    chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
@@ -94,11 +93,8 @@ fn print_register<U: hil::uart::UART>(console: &mut drivers::console::Console<U>
 }
 
 pub unsafe fn init() -> &'static mut Firestorm {
-    use core::intrinsics;
-    use sam4l::pm;
-
-    CHIP = Some(sam4l::Sam4l::new());
-    let chip = CHIP.as_mut().unwrap();
+    chip::CHIP = Some(chip::Sam4l::new());
+    let chip = chip::CHIP.as_mut().unwrap();
 
     FIRESTORM = Some(Firestorm {
         chip: chip,

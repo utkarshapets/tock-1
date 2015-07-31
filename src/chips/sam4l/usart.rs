@@ -4,9 +4,9 @@ use core::cmp::min;
 use hil::{uart, spi_master, Controller};
 use hil::uart::UART;
 use hil::uart::Parity;
-
 use nvic;
 use pm::{self, Clock, PBAClock};
+use chip;
 
 pub static mut USART3_INTERRUPT : bool = false;
 
@@ -243,8 +243,12 @@ impl uart::UART for USART {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn USART3_Handler() {
-    volatile!(USART3_INTERRUPT = true);
+    use common::Queue;
+
     nvic::disable(nvic::NvicIdx::USART3);
+    chip::CHIP.as_mut().map(|chip| {
+        chip.queue.enqueue(nvic::NvicIdx::USART3)
+    });
 }
 
 // SPI master implementation
