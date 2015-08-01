@@ -8,6 +8,7 @@ extern crate common;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
+extern crate rf230;
 
 use core::prelude::*;
 use hil::adc::AdcInternal;
@@ -42,10 +43,10 @@ pub struct Firestorm {
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
-    // SPI for testing
-    pub spi_master: &'static mut sam4l::usart::USART,
     // Non-USART SPI for testing
     pub spi: &'static mut sam4l::spi::SPI,
+    // RF230 for testing
+    pub rf230: rf230::RF230<sam4l::gpio::GPIOPin>,
 }
 
 impl Firestorm {
@@ -70,28 +71,6 @@ impl Firestorm {
 
 }
 
-fn print_binary(value: u32) -> [u8; 32] {
-    let mut string: [u8; 32] = ['0' as u8; 32];
-    for i in 0..31 {
-        let bit = (value >> i) & 1;
-        if bit == 1 {
-            string[31 - i] = '1' as u8;
-        }
-    }
-    string
-}
-
-fn print_register<U: hil::uart::UART>(console: &mut drivers::console::Console<U>, name: &str, reg: &'static u32) {
-    use core::intrinsics;
-    console.putstr(name);
-    console.putstr(": ");
-    let bits = print_binary( unsafe { intrinsics::volatile_load(reg) });
-    for &bit in bits.iter() {
-        console.putbytes(&[bit]);
-    }
-    console.putstr("\n");
-}
-
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
@@ -106,9 +85,14 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        // SPI using USART 1
-        spi_master: &mut chip.usarts[1],
         spi: &mut chip.spi,
+
+        // RF230 connections:
+        // SLP_TR PC14
+        // RSTN   PC15
+        // SELN   PC01 (Slave select 3 from the SPI hardware when peripheral A is selected)
+        // IRQ    PA20 (EIC EXTINT5 when peripheral A is selected)
+        rf230: rf230::RF230::new(&mut chip.spi, &mut chip.pc01, &mut chip.pa20, &mut chip.pc14, &mut chip.pc15),
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -135,41 +119,10 @@ pub unsafe fn init() -> &'static mut Firestorm {
     firestorm.console.initialize();
 
 
-
-    // Set pins for SPI testing
-    // PC06 as SCLK
-    chip.pc06.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC04 as MISO
-    chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC05 as MOSI
-    chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC00 as slave select 2
-    chip.pc00.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    // PC02 as slave select 1
-    chip.pc02.configure(Some(sam4l::gpio::PeripheralFunction::A));
     // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.
     // The primary function column of the Storm pin reference is incorrect,
     // but the A column is correct.
     // PC02 is chip select 1, and PC00 is chip select 2.
-
-    firestorm.spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
-    firestorm.spi.init(hil::spi_master::SPIParams {
-        baud_rate: 8000000,
-        data_order: hil::spi_master::DataOrder::LSBFirst,
-        clock_polarity: hil::spi_master::ClockPolarity::IdleHigh,
-        clock_phase: hil::spi_master::ClockPhase::SampleLeading,
-        client: None,
-    });
-    firestorm.spi.enable();
-
-    let mut i: u8 = 0;
-    loop {
-        firestorm.spi.write_byte(i);
-        i += 1;
-    }
-
-    // End SPI testing
-
 
     firestorm
 }

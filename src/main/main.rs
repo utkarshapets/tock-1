@@ -19,8 +19,6 @@ pub extern fn main() {
     use process::Process;
     use common::{Shared,Queue};
 
-    use hil::spi_master::SPI;
-
     let mut platform = unsafe {
         platform::init()
     };
@@ -30,10 +28,6 @@ pub extern fn main() {
     let mut processes = [Shared::new(app1)];
 
     loop {
-        // Testing SPI
-
-        platform.spi_master.write_byte(0b10101010);
-
         unsafe {
             platform.service_pending_interrupts();
 
