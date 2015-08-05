@@ -14,6 +14,7 @@ use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 use hil::spi_master::SPI;
+use hil::ieee802154::Transceiver;
 use sam4l::*;
 
 pub static mut ADC  : Option<adc::Adc> = None;
@@ -71,6 +72,26 @@ impl Firestorm {
 
 }
 
+fn format_u8(mut value: u8) -> [u8; 8] {
+    let mut chars: [u8; 8] = [0; 8];
+    for i in 0..7 {
+        chars[7 - i] = if value == 1 {'1' as u8} else {'0' as u8};
+        value >>= 1;
+    }
+    chars
+}
+
+struct TestIEEEReader;
+impl hil::ieee802154::Reader for TestIEEEReader {
+    fn frame_received(&mut self, frame: hil::ieee802154::Frame) {
+
+    }
+    fn send_done(&mut self) {
+
+    }
+}
+static mut ieeeReader: TestIEEEReader = TestIEEEReader;
+
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
@@ -92,7 +113,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
         // RSTN   PC15
         // SELN   PC01 (Slave select 3 from the SPI hardware when peripheral A is selected)
         // IRQ    PA20 (EIC EXTINT5 when peripheral A is selected)
-        rf230: rf230::RF230::new(&mut chip.spi, &mut chip.pc01, &mut chip.pa20, &mut chip.pc14, &mut chip.pc15),
+        rf230: rf230::RF230::new(&mut chip.spi, sam4l::eic::Interrupt::Interrupt5, &mut chip.pc14, &mut chip.pc15),
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -118,6 +139,32 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     firestorm.console.initialize();
 
+    // Configure pins for RF230
+    // SPI
+    // PC06 as CLK
+    chip.pc06.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC04 as MISO
+    chip.pc04.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC05 as MOSI
+    chip.pc05.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PC01 as slave select 3
+    chip.pc01.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // PB12 also as slave select 3 for debugging
+    chip.pb12.configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // End SPI
+    // PA20 as external interrupt 5
+    chip.pa20.configure(Some(sam4l::gpio::PeripheralFunction::C));
+    // End configuring pins for RF230
+
+    let rf230: &'static mut rf230::RF230<sam4l::gpio::GPIOPin> = &mut firestorm.rf230;
+    chip.spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral3);
+    rf230.init(hil::ieee802154::Params{ client: &mut ieeeReader });
+    loop {
+        let part_number = rf230.get_part_number();
+        // firestorm.console.putstr("Part number: ");
+        // firestorm.console.putbytes(&format_u8(part_number));
+        // firestorm.console.putstr("\n");
+    }
 
     // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.
     // The primary function column of the Storm pin reference is incorrect,

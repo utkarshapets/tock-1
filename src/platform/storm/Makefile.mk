@@ -5,7 +5,7 @@ SDB_VERSION=$(shell git show-ref -s HEAD)
 SDB_NAME=storm.rs
 SDB_DESCRIPTION="An OS for the storm"
 
-$(BUILD_DIR)/libplatform.rlib: $(call rwildcard,src/platform/storm,*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libsam4l.rlib $(BUILD_DIR)/libdrivers.rlib
+$(BUILD_DIR)/libplatform.rlib: $(call rwildcard,src/platform/storm,*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libsam4l.rlib $(BUILD_DIR)/libdrivers.rlib $(BUILD_DIR)/librf230.rlib
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) src/platform/storm/lib.rs
 
@@ -24,4 +24,3 @@ all: $(BUILD_DIR)/main.sdb
 
 program: $(BUILD_DIR)/main.sdb
 	$(SLOAD) flash $(BUILD_DIR)/main.sdb
-

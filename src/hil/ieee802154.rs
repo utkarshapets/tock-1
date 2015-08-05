@@ -89,7 +89,7 @@ pub trait Reader {
 }
 
 pub struct Params {
-    client: &'static mut Reader,
+    pub client: &'static mut Reader,
 }
 
 /// A trait for transceivers that can send and receive 802.15.4 frames

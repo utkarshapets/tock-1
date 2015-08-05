@@ -9,6 +9,8 @@ mod registers;
 extern crate core;
 extern crate common;
 extern crate hil;
+extern crate sam4l;
+use sam4l::eic;
 use core::prelude::*;
 use hil::spi_master::*;
 use hil::gpio::GPIOPin;
@@ -75,38 +77,12 @@ enum SPICommand {
     SRAMWrite = 0b01000000,
 }
 
-/// Sets the slave select pin low when constructed and returns it to high when destructed.
-/// Allows the use of RAII to ensure that the slave select pin is set correctly.
-struct SPITransaction<'a, GPIO: GPIOPin + 'a> {
-    slave_select: &'a mut GPIO,
-}
-impl<'a, GPIO: GPIOPin> SPITransaction<'a, GPIO> {
-    /// Creates a new transaction and sets the provided slave select output to low (active)
-    pub fn new(slave_select: &'a mut GPIO) -> SPITransaction<'a, GPIO> {
-        // Set low
-        slave_select.enable_output();
-        slave_select.clear();
-        SPITransaction{ slave_select: slave_select }
-    }
-}
-impl<'a, GPIO: GPIOPin> Drop for SPITransaction<'a, GPIO> {
-    /// Sets the slave select output to high (inactive)
-    fn drop(&mut self) {
-        self.slave_select.set();
-    }
-}
-
 ///
 /// Provides access to an RF230
 ///
 pub struct RF230<GPIO: 'static + GPIOPin> {
     /// SPI communication
     spi: &'static mut SPI,
-    /// SPI slave select pin
-    slave_select: &'static mut GPIO,
-    /// IRQ signal (for interrupts sent by the RF230 to the processor)
-    // TODO: Verify that interrupts can be received with this
-    irq: &'static mut GPIO,
     /// Multi-purpose control signal (SLP_TR)
     control: &'static mut GPIO,
     /// Reset signal
@@ -118,21 +94,19 @@ pub struct RF230<GPIO: 'static + GPIOPin> {
 
 impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
     /// Creates an RF230 object using the provided SPI object and input/output pins
-    pub fn new(mut spi: &'static mut SPI, mut slave_select: &'static mut GPIO, irq: &'static mut GPIO, control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<GPIO> {
+    ///
+    /// `spi` is the SPI object used to communicate with the RF230. It must set its slave select
+    /// pin automatically. The corresponding pins must have already been configured with the
+    /// correct peripheral.
+    ///
+    /// `irq` is an external interrupt that the RF230's IRQ pin. The corresponding pin must have
+    /// already been configured with the correct EIC peripheral.
+    ///
+    /// `control` and `reset` are GPIO pins connected to the RF230's SLP_TR and RST pins.
+    ///
+    pub fn new(mut spi: &'static mut SPI, irq: eic::Interrupt, control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<GPIO> {
 
-        // Set slave select high (not selected)
-        slave_select.enable_output();
-        slave_select.set();
-
-        // TODO: Reset
-
-        let rf230 = RF230{ spi: spi, slave_select: slave_select, irq: irq, control: control, reset: reset, client: None };
-
-        // Set up SPI
-        spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE, client: None });
-        spi.enable();
-
-
+        let rf230 = RF230{ spi: spi, control: control, reset: reset, client: None };
         rf230
     }
 
@@ -183,23 +157,19 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
     /// Writes the specified value to the specified register
     fn write_register(&mut self, register: registers::Register, value: u8) {
-        // Byte 1: 1, 0, register address
-        let byte1 = (SPICommand::RegisterWrite as u8) | register.address;
-        let byte2 = register.clean_for_write(value);
+        let bytes = [(SPICommand::RegisterWrite as u8) | register.address,
+                    register.clean_for_write(value) ];
         // Send two bytes, ignore returned values
-
-        let _transaction = SPITransaction::new(self.slave_select);
-        self.spi.write_byte(byte1);
-        self.spi.write_byte(byte2);
+        self.spi.write(&bytes);
     }
     /// Reads the specified register and returns its value
     fn read_register(&mut self, register: registers::Register) -> u8 {
         // Byte 1: 1, 0, register address
-        let byte1 = SPICommand::RegisterRead as u8 | register.address;
+        let bytes: [u8; 2] = [SPICommand::RegisterRead as u8 | register.address, 0xFF];
+        let mut read_bytes: [u8; 2] = [0xFF; 2];
         // Send the byte with the register address, read the value in the next byte
-        let _transaction = SPITransaction::new(self.slave_select);
-        self.spi.write_byte(byte1);
-        let result = self.spi.read_byte();
+        self.spi.read_and_write(&mut read_bytes, &bytes);
+        let result = read_bytes[1];
         result
     }
 
@@ -210,7 +180,6 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
         // TOOD: Redo
 
         let length = data.len() as u8;
-        let _transaction = SPITransaction::new(self.slave_select);
         // Write command
         self.spi.write_byte(SPICommand::FrameBufferWrite as u8);
         // Write length
@@ -230,7 +199,6 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
     /// Reads `data.len()` bytes from the RF230 SRAM starting at the specified address and stores
     /// them in `data`
     fn read_sram(&mut self, address: u8, data: &mut [u8]) {
-        let _transaction = SPITransaction::new(self.slave_select);
         // Send read request
         self.spi.write_byte(SPICommand::SRAMRead as u8);
         // Send address
@@ -243,7 +211,6 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
     /// Writes `data.len()` bytes from `data` to the RF230 SRAM starting at the specified address
     fn write_sram(&mut self, address: u8, data: &[u8]) {
-        let _transaction = SPITransaction::new(self.slave_select);
         // Send write command
         self.spi.write_byte(SPICommand::SRAMWrite as u8);
         self.spi.write_byte(address);
@@ -330,6 +297,10 @@ impl<GPIO: 'static + GPIOPin> Reader for RF230<GPIO> {
 
 impl<GPIO: 'static + GPIOPin> ieee802154::Transceiver for RF230<GPIO> {
     fn init(&mut self, params: ieee802154::Params) {
+
+        // Set up SPI
+        self.spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE, client: None });
+        self.spi.enable();
 
     }
 

@@ -64,7 +64,7 @@ pub struct SPIParams {
 /// 1. Call the init method and specifiy parameters for communication
 /// 2. Call the enable method
 /// 3. Read and write data
-/// 
+///
 pub trait SPI {
     /// Configures an object for communication as an SPI master
     fn init(&mut self, params: SPIParams);
@@ -78,9 +78,15 @@ pub trait SPI {
 
     /// Reads `buffer.len()` bytes and stores them in the provided buffer.
     /// Executes asynchronously and calls this object's client `read_done()` callback when done.
+    ///
+    /// If this SPI implementation manages a slave select pin, the connection remains active
+    /// until the last byte in the buffer is written.
     fn read(&mut self, buffer: &mut [u8]);
     /// Writes `buffer.len()` bytes from the provided buffer.
     /// Executes asynchronously and calls this object's client `write_done()` callback when done.
+    ///
+    /// If this SPI implementation manages a slave select pin, the connection remains active
+    /// until the last byte in the buffer is filled with read data.
     fn write(&mut self, buffer: &[u8]);
 
     /// Simultaneously reads and writes bytes.
@@ -90,6 +96,9 @@ pub trait SPI {
     /// undefined.
     /// Executes asynchronously and calls this object's client `read_write_done()` callback when
     /// done.
+    ///
+    /// If this SPI implementation manages a slave select pin, the connection remains active
+    /// until the last byte is written.
     fn read_and_write(&mut self, read_buffer: &mut [u8], write_buffer: &[u8]);
 
     /// Enables
