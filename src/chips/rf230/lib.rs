@@ -4,13 +4,14 @@
 #![no_std]
 #![allow(dead_code)]
 
-pub mod registers;
+mod registers;
 
 extern crate core;
 extern crate common;
 extern crate hil;
 extern crate sam4l;
 use sam4l::eic;
+use sam4l::nvic;
 use core::prelude::*;
 use hil::spi_master::*;
 use hil::gpio::GPIOPin;
@@ -59,9 +60,26 @@ impl State {
             State::STATE_TRANSITION_IN_PROGRESS => 0x1F,
         }
     }
+
+    /// Converts a State into a string containing a human-readable representation
+    /// of this state
+    pub fn as_str(&self) -> &'static str {
+        match *self {
+            State::P_ON => "P_ON",
+            State::BUSY_RX => "BUSY_RX",
+            State::BUSY_TX => "BUSY_TX",
+            State::RX_ON => "RX_ON",
+            State::TRX_OFF => "TRX_OFF",
+            State::PLL_ON => "PLL_ON",
+            State::SLEEP => "SLEEP",
+            State::RX_ON_NOCLK => "RX_ON_NOCLK",
+            State::STATE_TRANSITION_IN_PROGRESS => "STATE_TRANSITION_IN_PROGRESS",
+        }
+    }
 }
 
 /// Commands sent as (or part of) the first byte of an SPI session
+/// Since the most significant bit is transmitted first, the bytes are sent from left to right.
 enum SPICommand {
     /// Read a register
     RegisterRead = 0b10000000,
@@ -77,6 +95,21 @@ enum SPICommand {
     SRAMWrite = 0b01000000,
 }
 
+/// Handles interrupts from external interrupt 5
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn EIC_5_Handler() {
+    // Open issue: What should be done here?
+    // This is part of the platform, not part of the chip.
+
+    // use common::Queue;
+    //
+    // eic::set_enabled(eic::Interrupt::Interrupt5, false);
+    // chip::CHIP.as_mut().map(|chip| {
+    //     chip.queue.enqueue(nvic::NvicIdx::EIC5)
+    // });
+}
+
 ///
 /// Provides access to an RF230
 ///
@@ -84,7 +117,7 @@ pub struct RF230<GPIO: 'static + GPIOPin> {
     /// SPI communication
     spi: &'static mut SPI,
     /// Multi-purpose control signal (SLP_TR)
-    control: &'static mut GPIO,
+    pub control: &'static mut GPIO,
     /// Reset signal
     reset: &'static mut GPIO,
 
@@ -156,14 +189,14 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
 
     /// Writes the specified value to the specified register
-    pub fn write_register(&mut self, register: registers::Register, value: u8) {
+    fn write_register(&mut self, register: registers::Register, value: u8) {
         let bytes = [(SPICommand::RegisterWrite as u8) | register.address,
                     register.clean_for_write(value) ];
         // Send two bytes, ignore returned values
         self.spi.write(&bytes);
     }
     /// Reads the specified register and returns its value
-    pub fn read_register(&mut self, register: registers::Register) -> u8 {
+    fn read_register(&mut self, register: registers::Register) -> u8 {
         // Byte 1: 1, 0, register address
         let bytes: [u8; 2] = [SPICommand::RegisterRead as u8 | register.address, 0x0];
         let mut read_bytes: [u8; 2] = [0x0; 2];
@@ -221,7 +254,8 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
     /// Returns the current state of the RF230
     pub fn get_state(&mut self) -> State {
-        match self.read_register(registers::TRX_STATUS) {
+        let state = 0b11111 & self.read_register(registers::TRX_STATUS);
+        match state {
             0x0 => State::P_ON,
             0x1 => State::BUSY_RX,
             0x2 => State::BUSY_TX,
@@ -240,12 +274,12 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
     /// Writes the specified state to the TRX_STATE register.
     /// Note that this is is only valid for some state transitions, as defined in the state diagram.
-    fn write_state_register(&mut self, state: State) {
+    pub fn write_state_register(&mut self, state: State) {
         self.write_register(registers::TRX_STATUS, state.as_byte());
     }
 
     /// Sets the state of the RF230 to State::RX_ON
-    fn set_state_rx_on(&mut self) {
+    pub fn set_state_rx_on(&mut self) {
         loop {
             let state = self.get_state();
             match state {
@@ -304,7 +338,7 @@ impl<GPIO: 'static + GPIOPin> ieee802154::Transceiver for RF230<GPIO> {
 
         // Enable pins
         self.control.enable_output();
-        self.control.set();
+        self.control.clear();
         self.reset.enable_output();
         self.reset.set();
 

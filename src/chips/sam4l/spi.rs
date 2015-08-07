@@ -209,8 +209,8 @@ impl spi_master::SPI for SPI {
         };
         // Clock phase
         match params.clock_phase {
-            spi_master::ClockPhase::SampleTrailing => csr |= (1 << 1), // Set bit 1
-            spi_master::ClockPhase::SampleLeading => csr &= 0xFFFFFFFD, // Clear bit 1
+            spi_master::ClockPhase::SampleLeading => csr |= (1 << 1), // Set bit 1
+            spi_master::ClockPhase::SampleTrailing => csr &= 0xFFFFFFFD, // Clear bit 1
         }
         // Keep slave select active until a last transfer bit is set
         csr |= 1 << 3;

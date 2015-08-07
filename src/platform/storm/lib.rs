@@ -16,6 +16,8 @@ use hil::Controller;
 use hil::spi_master::SPI;
 use hil::ieee802154::Transceiver;
 use sam4l::*;
+use core::ops::BitAnd;
+use core::ops::Shr;
 
 pub static mut ADC  : Option<adc::Adc> = None;
 
@@ -72,28 +74,14 @@ impl Firestorm {
 
 }
 
-fn format_u8(mut value: u8) -> [u8; 8] {
+fn format_u8(value: u8) -> [u8; 8] {
     let mut chars: [u8; 8] = ['?' as u8; 8];
-    for i in 0..7 {
-        chars[7 - i] = if (value & 1) == 1 {'1' as u8} else {'0' as u8};
-        value >>= 1;
+    for i in 0..8 {
+        chars[7 - i] = if ((value >> i) & 1) == 1 {'1' as u8} else {'0' as u8};
     }
     chars
 }
 
-fn format_u32(mut value: u32) -> [u8; 39] {
-    let mut chars: [u8; 39] = ['?' as u8; 39];
-    for i in 0..38 {
-        if i % 5 == 0 {
-            chars[38 - i] = ' ' as u8;
-        }
-        else {
-            chars[38 - i] = if (value & 1) == 1 {'1' as u8} else {'0' as u8};
-            value >>= 1;
-        }
-    }
-    chars
-}
 
 struct TestIEEEReader;
 impl hil::ieee802154::Reader for TestIEEEReader {
@@ -107,6 +95,8 @@ impl hil::ieee802154::Reader for TestIEEEReader {
 static mut ieeeReader: TestIEEEReader = TestIEEEReader;
 
 pub unsafe fn init() -> &'static mut Firestorm {
+    use hil::gpio::GPIOPin;
+
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
 
@@ -175,19 +165,20 @@ pub unsafe fn init() -> &'static mut Firestorm {
     rf230.init(hil::ieee802154::Params{ client: &mut ieeeReader });
 
     loop {
-        firestorm.console.putstr(":) ");
-        rf230.get_part_number();
-        rf230.get_version_number();
-        rf230.get_manufacturer_id();
-
-        let status = rf230.read_register(rf230::registers::TRX_STATUS);
-        firestorm.console.putbytes(&format_u8(status));
+        let state = rf230.get_state();
+        firestorm.console.putstr(state.as_str());
         firestorm.console.putstr("\n");
-        if status == 0b11 {
-            firestorm.console.putstr(":P\n");
-        }
-        if (status & 0b110) == 0b110 {
-            firestorm.console.putstr(":@\n");
+        match state {
+            rf230::State::P_ON => rf230.write_state_register(rf230::State::TRX_OFF),
+            rf230::State::BUSY_RX => { /* Wait for receive completion */ },
+            rf230::State::BUSY_TX => { /* Wait for send completion */ },
+            rf230::State::TRX_OFF => rf230.write_state_register(rf230::State::PLL_ON),
+            rf230::State::RX_ON => rf230.write_state_register(rf230::State::PLL_ON),
+            rf230::State::SLEEP => rf230.control.clear(), // Set SLP_TR low
+            rf230::State::RX_ON_NOCLK => rf230.control.clear(), // Set SLP_TR low
+            rf230::State::STATE_TRANSITION_IN_PROGRESS => { /* Wait for state transition to end */ },
+
+            rf230::State::PLL_ON => break,
         }
     }
 
