@@ -73,10 +73,24 @@ impl Firestorm {
 }
 
 fn format_u8(mut value: u8) -> [u8; 8] {
-    let mut chars: [u8; 8] = [0; 8];
+    let mut chars: [u8; 8] = ['?' as u8; 8];
     for i in 0..7 {
-        chars[7 - i] = if value == 1 {'1' as u8} else {'0' as u8};
+        chars[7 - i] = if (value & 1) == 1 {'1' as u8} else {'0' as u8};
         value >>= 1;
+    }
+    chars
+}
+
+fn format_u32(mut value: u32) -> [u8; 39] {
+    let mut chars: [u8; 39] = ['?' as u8; 39];
+    for i in 0..38 {
+        if i % 5 == 0 {
+            chars[38 - i] = ' ' as u8;
+        }
+        else {
+            chars[38 - i] = if (value & 1) == 1 {'1' as u8} else {'0' as u8};
+            value >>= 1;
+        }
     }
     chars
 }
@@ -159,11 +173,22 @@ pub unsafe fn init() -> &'static mut Firestorm {
     let rf230: &'static mut rf230::RF230<sam4l::gpio::GPIOPin> = &mut firestorm.rf230;
     chip.spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral3);
     rf230.init(hil::ieee802154::Params{ client: &mut ieeeReader });
+
     loop {
-        let part_number = rf230.get_part_number();
-        // firestorm.console.putstr("Part number: ");
-        // firestorm.console.putbytes(&format_u8(part_number));
-        // firestorm.console.putstr("\n");
+        firestorm.console.putstr(":) ");
+        rf230.get_part_number();
+        rf230.get_version_number();
+        rf230.get_manufacturer_id();
+
+        let status = rf230.read_register(rf230::registers::TRX_STATUS);
+        firestorm.console.putbytes(&format_u8(status));
+        firestorm.console.putstr("\n");
+        if status == 0b11 {
+            firestorm.console.putstr(":P\n");
+        }
+        if (status & 0b110) == 0b110 {
+            firestorm.console.putstr(":@\n");
+        }
     }
 
     // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.

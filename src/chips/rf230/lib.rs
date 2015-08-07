@@ -4,7 +4,7 @@
 #![no_std]
 #![allow(dead_code)]
 
-mod registers;
+pub mod registers;
 
 extern crate core;
 extern crate common;
@@ -21,7 +21,7 @@ use hil::ieee802154;
 ///
 
 /// 8 MHz, the maximum supported frequency (also defines the bit rate)
-const BAUD_RATE: u32 = 8000000;
+const BAUD_RATE: u32 = 4000000;
 /// Bit ordering with the most significant bit first
 const ORDERING: DataOrder = DataOrder::MSBFirst;
 /// Clock polarity: Normally low
@@ -32,7 +32,7 @@ const PHASE: ClockPhase = ClockPhase::SampleLeading;
 /// Possible states in basic operating mode
 #[allow(non_camel_case_types)]
 #[derive(PartialEq)]
-enum State {
+pub enum State {
     P_ON,
     BUSY_RX,
     BUSY_TX,
@@ -156,17 +156,17 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
 
     /// Writes the specified value to the specified register
-    fn write_register(&mut self, register: registers::Register, value: u8) {
+    pub fn write_register(&mut self, register: registers::Register, value: u8) {
         let bytes = [(SPICommand::RegisterWrite as u8) | register.address,
                     register.clean_for_write(value) ];
         // Send two bytes, ignore returned values
         self.spi.write(&bytes);
     }
     /// Reads the specified register and returns its value
-    fn read_register(&mut self, register: registers::Register) -> u8 {
+    pub fn read_register(&mut self, register: registers::Register) -> u8 {
         // Byte 1: 1, 0, register address
-        let bytes: [u8; 2] = [SPICommand::RegisterRead as u8 | register.address, 0xFF];
-        let mut read_bytes: [u8; 2] = [0xFF; 2];
+        let bytes: [u8; 2] = [SPICommand::RegisterRead as u8 | register.address, 0x0];
+        let mut read_bytes: [u8; 2] = [0x0; 2];
         // Send the byte with the register address, read the value in the next byte
         self.spi.read_and_write(&mut read_bytes, &bytes);
         let result = read_bytes[1];
@@ -220,7 +220,7 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
     }
 
     /// Returns the current state of the RF230
-    fn get_state(&mut self) -> State {
+    pub fn get_state(&mut self) -> State {
         match self.read_register(registers::TRX_STATUS) {
             0x0 => State::P_ON,
             0x1 => State::BUSY_RX,
@@ -301,6 +301,12 @@ impl<GPIO: 'static + GPIOPin> ieee802154::Transceiver for RF230<GPIO> {
         // Set up SPI
         self.spi.init(SPIParams{ baud_rate: BAUD_RATE, data_order: ORDERING, clock_polarity: POLARITY, clock_phase: PHASE, client: None });
         self.spi.enable();
+
+        // Enable pins
+        self.control.enable_output();
+        self.control.set();
+        self.reset.enable_output();
+        self.reset.set();
 
     }
 
