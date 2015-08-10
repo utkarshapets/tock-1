@@ -16,8 +16,6 @@ use hil::Controller;
 use hil::spi_master::SPI;
 use hil::ieee802154::Transceiver;
 use sam4l::*;
-use core::ops::BitAnd;
-use core::ops::Shr;
 
 pub static mut ADC  : Option<adc::Adc> = None;
 
@@ -165,21 +163,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     rf230.init(hil::ieee802154::Params{ client: &mut ieeeReader });
 
     loop {
-        let state = rf230.get_state();
-        firestorm.console.putstr(state.as_str());
-        firestorm.console.putstr("\n");
-        match state {
-            rf230::State::P_ON => rf230.write_state_register(rf230::State::TRX_OFF),
-            rf230::State::BUSY_RX => { /* Wait for receive completion */ },
-            rf230::State::BUSY_TX => { /* Wait for send completion */ },
-            rf230::State::TRX_OFF => rf230.write_state_register(rf230::State::PLL_ON),
-            rf230::State::RX_ON => rf230.write_state_register(rf230::State::PLL_ON),
-            rf230::State::SLEEP => rf230.control.clear(), // Set SLP_TR low
-            rf230::State::RX_ON_NOCLK => rf230.control.clear(), // Set SLP_TR low
-            rf230::State::STATE_TRANSITION_IN_PROGRESS => { /* Wait for state transition to end */ },
-
-            rf230::State::PLL_ON => break,
-        }
+        rf230.write_frame_buffer(&[0, 1, 2, 3, 4, 5]);
     }
 
     // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.

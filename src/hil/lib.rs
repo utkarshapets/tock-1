@@ -3,6 +3,7 @@
 #![feature(asm,lang_items,core,no_std)]
 #![no_std]
 
+#[macro_use(panic)]
 extern crate core;
 extern crate process;
 

@@ -137,7 +137,7 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
     ///
     /// `control` and `reset` are GPIO pins connected to the RF230's SLP_TR and RST pins.
     ///
-    pub fn new(mut spi: &'static mut SPI, irq: eic::Interrupt, control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<GPIO> {
+    pub fn new(spi: &'static mut SPI, irq: eic::Interrupt, control: &'static mut GPIO, reset: &'static mut GPIO) -> RF230<GPIO> {
 
         let rf230 = RF230{ spi: spi, control: control, reset: reset, client: None };
         rf230
@@ -208,25 +208,31 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
 
     /// Writes a frame to the framebuffer
     /// The data must not contain more than 127 bytes. If the data contains more than 127 bytes,
-    /// the frame will not be transmitted.
-    fn write_frame_buffer(&mut self, data: &[u8]) {
-        // TOOD: Redo
-
-        let length = data.len() as u8;
-        // Write command
-        self.spi.write_byte(SPICommand::FrameBufferWrite as u8);
-        // Write length
-        self.spi.write_byte(length);
-        // Write data
-        for &byte in data {
-            self.spi.write_byte(byte);
+    /// the frame will not be written.
+    pub fn write_frame_buffer(&mut self, data: &[u8]) {
+        if data.len() <= 127 {
+            let length = data.len() as u8;
+            let mut spi_bytes: [u8; 129] = [0; 129];
+            spi_bytes[0] = SPICommand::FrameBufferWrite as u8;
+            spi_bytes[1] = length;
+            for i in 0..length {
+                spi_bytes[2 + i as usize] = data[i as usize];
+            }
+            // Write the 2 bytes of command+length and length bytes of data
+            self.spi.write(&spi_bytes[0..((length as usize + 2))]);
         }
     }
 
     /// Reads a frame from the framebuffer
     /// Returns the frame that was read.
     fn read_frame_buffer(&mut self) {
-        // TODO
+        // The length of the frame is not available until the second transfer,
+        // this implementation reads 132 bytes and then figures out the length.
+        let mut write_bytes: [u8; 132] = [0; 132];
+        write_bytes[0] = SPICommand::FrameBufferRead as u8;
+        let mut read_bytes: [u8; 132] = [0; 132];
+
+        self.spi.read_and_write(&mut read_bytes, &write_bytes);
     }
 
     /// Reads `data.len()` bytes from the RF230 SRAM starting at the specified address and stores

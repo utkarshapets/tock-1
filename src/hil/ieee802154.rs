@@ -1,9 +1,10 @@
 //! APIs for IEEE 802.15.4 communication
 
-
-
 use core::option::Option;
+use core::option::Option::None;
 use core::clone::Clone;
+use core::ops::Index;
+use core::ops::IndexMut;
 
 /// Frame types
 pub enum FrameType {
@@ -79,6 +80,64 @@ pub struct Frame {
     /// The actual length of the payload
     /// Must be less than or equal to MAX_PAYLOAD_LENGTH
     payload_length: usize,
+}
+
+impl Frame {
+
+    /// Creates a new frame with the specified frame type and payload length
+    ///
+    /// The returned frame has security not enabled, no other frames pending, no acknowledgment
+    /// requested, sequence number 0, no PAN IDs or addresses, and a payload of the requested
+    /// length with each byte set to zero.
+    fn new(frame_type: FrameType, payload_length: usize) -> Frame {
+        Frame {
+            frame_type: frame_type,
+            security_enabled: false,
+            frame_pending: false,
+            acknowledgment_request: false,
+            sequence_number: 0,
+            source_pan_id: None,
+            source_address: None,
+            destination_pan_id: None,
+            destination_address: None,
+            payload: [0; MAX_PAYLOAD_LENGTH],
+            payload_length: payload_length
+        }
+    }
+
+    /// Returns the number of bytes in the payload of this frame
+    fn payload_length(&self) -> usize {
+        self.payload_length
+    }
+}
+
+impl Index<usize> for Frame {
+    type Output = u8;
+    ///
+    /// Accesses a byte of this frame's payload
+    ///
+    /// Panics if the requested index is greater than the payload length.
+    ///
+    fn index<'a>(&'a self, index: usize) -> &'a u8 {
+        if index >= self.payload_length {
+            panic!("Payload index out of bounds");
+        }
+        &self.payload[index]
+    }
+}
+
+impl IndexMut<usize> for Frame {
+    ///
+    /// Accesses a byte of this frame's payload
+    ///
+    /// Panics if the requested index is greater than the payload length.
+    ///
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut u8 {
+        if index >= self.payload_length {
+            panic!("Payload index out of bounds");
+        }
+        &mut self.payload[index]
+    }
 }
 
 pub trait Reader {
