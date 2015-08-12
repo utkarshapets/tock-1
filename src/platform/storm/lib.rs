@@ -164,6 +164,12 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     loop {
         rf230.write_frame_buffer(&[0, 1, 2, 3, 4, 5]);
+        firestorm.console.putstr("...");
+        rf230.read_frame_buffer();
+        firestorm.console.putstr("...");
+        let status = rf230.get_state();
+        firestorm.console.putstr(status.as_str());
+        firestorm.console.putstr("\n");
     }
 
     // Pin note: SPI_CS2 and SPI_CS1 on the Firestorm schematic are swapped.

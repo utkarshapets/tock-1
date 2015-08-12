@@ -194,6 +194,12 @@ impl SPI {
             Peripheral::Peripheral3 => volatile!(self.regs.csr3 = value),
         };
     }
+
+
+    /// Ends the SPI transaction by setting the slave select high
+    fn end_transaction(&mut self) {
+        volatile!(self.regs.cr = 1 << 24);
+    }
 }
 
 impl spi_master::SPI for SPI {
@@ -227,69 +233,71 @@ impl spi_master::SPI for SPI {
         volatile!(self.regs.mr = mode);
     }
 
-    fn write_byte(&mut self, out_byte: u8) -> u8 {
+    fn write_byte(&mut self, out_byte: u8, last_transfer: bool) -> u8 {
         let tdr = out_byte as u32;
         volatile!(self.regs.tdr = tdr);
+        if(last_transfer) {
+            self.end_transaction();
+        }
         // Wait for receive data register full
         while (volatile!(self.regs.sr) & 1) != 1 {}
         // Return read value
         volatile!(self.regs.rdr) as u8
     }
 
-    fn read_byte(&mut self) -> u8 {
-        self.write_byte(0)
+    fn read_byte(&mut self, last_transfer: bool) -> u8 {
+        self.write_byte(0, last_transfer)
     }
 
-    fn read(&mut self, buffer: &mut [u8]) {
+    fn read(&mut self, buffer: &mut [u8], last_transfer: bool) {
         // TODO: Asynchronous
         for i in 0..buffer.len() {
             // Write 0
             let mut tdr: u32 = 0;
             // Write the value
             volatile!(self.regs.tdr = tdr);
-            // Indicate the last transfer for the last byte
-            if i == buffer.len() - 1 {
-                volatile!(self.regs.cr = 1 << 24);
+            if(last_transfer && i == buffer.len() - 1) {
+                self.end_transaction();
             }
             // Wait for receive data register full
             while (volatile!(self.regs.sr) & 1) != 1 {}
+
+            buffer[i] = volatile!(self.regs.rdr) as u8;
         }
     }
 
-    fn write(&mut self, buffer: &[u8]) {
+    fn write(&mut self, buffer: &[u8], last_transfer: bool) {
         // TODO: Asynchronous
         for i in 0..buffer.len() {
             let mut tdr: u32 = buffer[i] as u32;
             // Write the value
             volatile!(self.regs.tdr = tdr);
-            // Indicate the last transfer for the last byte
-            if i == buffer.len() - 1 {
-                volatile!(self.regs.cr = 1 << 24);
+            if(last_transfer && i == buffer.len() - 1) {
+                self.end_transaction();
             }
             // Wait for transmit data register empty
             while ((volatile!(self.regs.sr) >> 1) & 1) != 1 {}
         }
     }
 
-    fn read_and_write(&mut self, read_buffer: &mut [u8], write_buffer: &[u8]) {
+    fn read_and_write(&mut self, read_buffer: &mut [u8], write_buffer: &[u8], last_transfer: bool) {
         // TODO: Asynchronous
         let count = cmp::min(read_buffer.len(), write_buffer.len());
         for i in 0..count {
             let tdr: u32 = write_buffer[i] as u32;
             // Write the value
             volatile!(self.regs.tdr = tdr);
-            // Indicate the last transfer for the last byte
-            if i == count - 1 {
-                volatile!(self.regs.cr = 1 << 24);
+            if(last_transfer && i == count - 1) {
+                self.end_transaction();
             }
             // Wait for receive data register full
             while (volatile!(self.regs.sr) & 1) != 1 {}
             // Read the received value
-            read_buffer[i] = volatile!(self.regs.rdr) as u8;
+            let read_byte = volatile!(self.regs.rdr) as u8;
+            read_buffer[i] = read_byte;
         }
         // TODO: Callback
     }
-
 
     fn enable(&mut self) {
         volatile!(self.regs.cr = 0b1);

@@ -6,6 +6,7 @@
 
 mod registers;
 
+#[macro_use(panic)]
 extern crate core;
 extern crate common;
 extern crate hil;
@@ -16,6 +17,7 @@ use core::prelude::*;
 use hil::spi_master::*;
 use hil::gpio::GPIOPin;
 use hil::ieee802154;
+use hil::ieee802154::{Frame, FrameType, Params};
 
 ///
 /// Implements a driver for the Atmel AT86RF230 2.4 GHz transceiver
@@ -193,69 +195,60 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
         let bytes = [(SPICommand::RegisterWrite as u8) | register.address,
                     register.clean_for_write(value) ];
         // Send two bytes, ignore returned values
-        self.spi.write(&bytes);
+        self.spi.write(&bytes, true);
     }
     /// Reads the specified register and returns its value
     fn read_register(&mut self, register: registers::Register) -> u8 {
         // Byte 1: 1, 0, register address
-        let bytes: [u8; 2] = [SPICommand::RegisterRead as u8 | register.address, 0x0];
-        let mut read_bytes: [u8; 2] = [0x0; 2];
+        let command = SPICommand::RegisterRead as u8 | register.address;
         // Send the byte with the register address, read the value in the next byte
-        self.spi.read_and_write(&mut read_bytes, &bytes);
-        let result = read_bytes[1];
+        self.spi.write_byte(command, false);
+        let result = self.spi.read_byte(true);
         result
     }
 
-    /// Writes a frame to the framebuffer
+    /// Writes a frame to the frame buffer
     /// The data must not contain more than 127 bytes. If the data contains more than 127 bytes,
     /// the frame will not be written.
     pub fn write_frame_buffer(&mut self, data: &[u8]) {
         if data.len() <= 127 {
             let length = data.len() as u8;
-            let mut spi_bytes: [u8; 129] = [0; 129];
-            spi_bytes[0] = SPICommand::FrameBufferWrite as u8;
-            spi_bytes[1] = length;
-            for i in 0..length {
-                spi_bytes[2 + i as usize] = data[i as usize];
-            }
-            // Write the 2 bytes of command+length and length bytes of data
-            self.spi.write(&spi_bytes[0..((length as usize + 2))]);
+            self.spi.write_byte(SPICommand::FrameBufferWrite as u8, false);
+            self.spi.write_byte(length, false);
+            self.spi.write(&data, true);
         }
     }
 
     /// Reads a frame from the framebuffer
     /// Returns the frame that was read.
-    fn read_frame_buffer(&mut self) {
-        // The length of the frame is not available until the second transfer,
-        // this implementation reads 132 bytes and then figures out the length.
-        let mut write_bytes: [u8; 132] = [0; 132];
-        write_bytes[0] = SPICommand::FrameBufferRead as u8;
-        let mut read_bytes: [u8; 132] = [0; 132];
+    pub fn read_frame_buffer(&mut self) -> Option<Frame> {
 
-        self.spi.read_and_write(&mut read_bytes, &write_bytes);
+        // Command
+        self.spi.write_byte(SPICommand::FrameBufferRead as u8, false);
+        // Receive length and 7th bit flag
+        // (The length is in bits 0-6)
+        let length = 0x7F | self.spi.read_byte(false);
+        // Read frame bytes
+        // Ignore link quality, energy detection, and receive status in the last three bytes
+        let mut frame_bytes: [u8; 127] = [0; 127];
+        self.spi.read(&mut frame_bytes, true);
+
+        Frame::from_bytes(&frame_bytes[..(length as usize)])
     }
 
     /// Reads `data.len()` bytes from the RF230 SRAM starting at the specified address and stores
     /// them in `data`
-    fn read_sram(&mut self, address: u8, data: &mut [u8]) {
-        // Send read request
-        self.spi.write_byte(SPICommand::SRAMRead as u8);
-        // Send address
-        self.spi.write_byte(address);
-        // Read data
-        for index in 0..data.len() {
-            data[index] = self.spi.read_byte();
-        }
+    fn read_sram(&mut self, address: u8, mut data: &mut [u8]) {
+        self.spi.write_byte(SPICommand::SRAMRead as u8, false);
+        self.spi.write_byte(address, false);
+        self.spi.read(&mut data, true);
     }
 
     /// Writes `data.len()` bytes from `data` to the RF230 SRAM starting at the specified address
     fn write_sram(&mut self, address: u8, data: &[u8]) {
-        // Send write command
-        self.spi.write_byte(SPICommand::SRAMWrite as u8);
-        self.spi.write_byte(address);
-        for &byte in data {
-            self.spi.write_byte(byte);
-        }
+        self.spi.write_byte(SPICommand::SRAMWrite as u8, false);
+        self.spi.write_byte(address, false);
+        self.spi.write(&data, true);
     }
 
     /// Returns the current state of the RF230
@@ -272,8 +265,7 @@ impl<GPIO: 'static + GPIOPin> RF230<GPIO> {
             0x1C => State::RX_ON_NOCLK,
             0x1F => State::STATE_TRANSITION_IN_PROGRESS,
             _ => {
-                static _MSG_FILE_LINE: (&'static str, &'static str, u32) = ("Unexpected state", file!(), line!());
-                ::core::panicking::panic(&_MSG_FILE_LINE)
+                panic!("Unexpected state value")
             }
         }
     }

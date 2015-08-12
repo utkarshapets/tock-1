@@ -2,6 +2,7 @@
 
 use core::option::Option;
 use core::option::Option::None;
+use core::option::Option::Some;
 use core::clone::Clone;
 use core::ops::Index;
 use core::ops::IndexMut;
@@ -86,11 +87,18 @@ impl Frame {
 
     /// Creates a new frame with the specified frame type and payload length
     ///
+    /// The length must be less than or equal to 127.
+    ///
     /// The returned frame has security not enabled, no other frames pending, no acknowledgment
     /// requested, sequence number 0, no PAN IDs or addresses, and a payload of the requested
     /// length with each byte set to zero.
-    fn new(frame_type: FrameType, payload_length: usize) -> Frame {
-        Frame {
+    ///
+    /// Returns a frame is the payload length is valid, or None if the payload length is not valid.
+    pub fn new(frame_type: FrameType, payload_length: usize) -> Option<Frame> {
+        if payload_length > 127 {
+            return None;
+        }
+        Some(Frame {
             frame_type: frame_type,
             security_enabled: false,
             frame_pending: false,
@@ -102,7 +110,11 @@ impl Frame {
             destination_address: None,
             payload: [0; MAX_PAYLOAD_LENGTH],
             payload_length: payload_length
-        }
+        })
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Frame> {
+        Frame::new(FrameType::Data, 0)
     }
 
     /// Returns the number of bytes in the payload of this frame
