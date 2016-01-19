@@ -10,4 +10,6 @@ pub mod console;
 pub mod gpio;
 pub mod timer;
 pub mod tmp006;
+#[allow(non_snake_case)] // rust being stupid
+pub mod accel_FXOS8700CQ;
 pub mod virtual_alarm;
