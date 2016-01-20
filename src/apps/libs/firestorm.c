@@ -62,3 +62,6 @@ int tmp006_enable() {
   return command(2, 0, 0);
 }
 
+int accel_enable() {
+  return command(3, 0, 0);
+}

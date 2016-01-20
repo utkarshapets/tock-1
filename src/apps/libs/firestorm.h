@@ -11,6 +11,7 @@ extern "C" {
 enum firestorm_cb_type {
   PUTSTR,
   READTMP,
+  READACCEL,
   ASYNC
 };
 
@@ -25,6 +26,8 @@ void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata)
 int tmp006_enable();
 int tmp006_read(int16_t *temperature);
 int tmp006_read_async(subscribe_cb cb, void* userdata);
+
+int accel_enable();
 
 #ifdef __cplusplus
 }
