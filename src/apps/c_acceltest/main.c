@@ -21,12 +21,20 @@ Initializing Accelerometer... ");
     snprintf(buf, 64, "Error(%d): Failed to enable accelerometer.\r\n", err);
     putstr(buf);
     return;
-  } else {
-    snprintf(buf, 64, "Initialized accelerometer! val %d", err);
+  }
+  snprintf(buf, 64, "Initialized accelerometer! val %d\r\n", err);
+  putstr(buf);
+  snprintf(buf, 64, "Reading from accelerometer...\r\n");
+  putstr(buf);
+
+  int16_t *x, *y, *z;
+  err = accel_read(x,y,z);
+  if (err < 0) {
+    snprintf(buf, 64, "Error(%d) reading from accelerometer.\r\n", err);
     putstr(buf);
     return;
-
   }
-
+  sprintf(buf, "x %d y %d z %d\r\n", x,y,z);
+  putstr(buf);
 }
 

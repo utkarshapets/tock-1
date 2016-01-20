@@ -65,3 +65,22 @@ int tmp006_enable() {
 int accel_enable() {
   return command(3, 0, 0);
 }
+
+static CB_TYPE read_accel_cb(int r0, int r1, int r2, void* ud) {
+  int16_t *res = (int16_t*)ud;
+  *res = (int16_t)r0;
+  return READACCEL;
+}
+
+int accel_read(int16_t *x, int16_t *y, int16_t *z) {
+  int error = accel_read_async(read_accel_cb, (void*)x);
+  if (error < 0) {
+    return error;
+  }
+  wait_for(READACCEL);
+  return 0;
+}
+
+int accel_read_async(subscribe_cb cb, void* userdata) {
+    return subscribe(3, 0, cb, userdata);
+}
