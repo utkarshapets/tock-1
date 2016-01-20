@@ -184,6 +184,69 @@ impl hil::i2c::I2C for I2CDevice {
         }
     }
 
+    #[inline(never)]
+    fn write_read_repeated_start(&self, addr: u16, reg: u8, data: &mut [u8]) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        // enable, reset, disable
+        volatile_store(&mut regs.control, 0x1 << 0);
+        volatile_store(&mut regs.control, 0x1 << 7);
+        volatile_store(&mut regs.control, 0x1 << 1);
+
+        // Configure the command register to instruct the TWIM peripheral
+        // to execute the I2C transaction
+        // Assume write length is 1 because we are just sending the register address
+        let command = (0x1 << 16) |             // NBYTES
+                      (0x1 << 15) |                    // VALID
+                      (0x0 << 14) |                    // STOP
+                      (0x1 << 13) |                    // START
+                      (0x0 << 11) |                    // TENBIT
+                      ((addr as usize) << 1) |         // SADR
+                      (0x0 << 0);                      // READ
+        volatile_store(&mut regs.command, command);
+
+        // now set up the read command
+        let next_command = (data.len() << 16) |           // NBYTES
+                  (0x1 << 15) |                    // VALID
+                  (0x1 << 14) |                    // STOP
+                  (0x1 << 13) |                    // START
+                  (0x0 << 11) |                    // TENBIT
+                  ((addr as usize) << 1) |         // SADR
+                  (0x1 << 0);                      // READ
+        volatile_store(&mut regs.next_command, next_command);
+
+        // Enable TWIM to send command
+        volatile_store(&mut regs.control, 0x1 << 0);
+
+        // wait to write the register for the read
+        while volatile_load(&regs.status) & 2 != 2 {}
+        volatile_store(&mut regs.transmit_holding, reg as usize);
+
+        // Read bytes in to the buffer
+        for i in 0..data.len() {
+            // Wait for the peripheral to tell us that we can
+            // read from the RX register
+            loop {
+                let status = volatile_load(&regs.status);
+                // TODO: define these constants somewhere
+                // RXRDY
+                if status & (1 << 0) == (1 << 0) {
+                    break;
+                }
+            }
+            data[i] = (volatile_load(&regs.receive_holding)) as u8;
+        }
+
+        // Wait for the end of the TWIM command
+        loop {
+            let status = volatile_load(&regs.status);
+            // CCOMP
+            if status & (1 << 3) == (1 << 3) {
+                break;
+            }
+        }
+    }
+
     fn read_sync (&self, addr: u16, buffer: &mut[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
