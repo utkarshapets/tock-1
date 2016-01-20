@@ -66,17 +66,24 @@ impl<'a, I: I2C> AccelFXOS8700CQ<'a, I> {
         a.address = address;
         a
     }
+}
 
-    // read the accelerometer values into an array of i16
-    fn read_accel(&self, buf: &mut [i16; 3]) -> isize {
+impl<'a, I: I2C> TimerClient for AccelFXOS8700CQ<'a, I> {
+    fn fired(&self, _: u32) {
+        if !self.enabled.get() {
+            return;
+        }
+        let mut accel_xyz: [i16; 3] = [0; 3];
         let mut rbuf: [u8; 6] = [0; 6];
         rbuf[0] = Registers::OutXMSB as u8;
-        self.i2c.write_sync(self.address, &rbuf[0..1]);
-        self.i2c.read_sync(self.address, &mut rbuf[0..6]);
-        buf[0] = (((rbuf[0] as u16) << 8) | (rbuf[1] as u16)) as i16;
-        buf[1] = (((rbuf[2] as u16) << 8) | (rbuf[3] as u16)) as i16;
-        buf[2] = (((rbuf[4] as u16) << 8) | (rbuf[5] as u16)) as i16;
-        0
+        self.i2c.write_read_repeated_start(self.address, Registers::OutXMSB as u8, &mut rbuf[0..6]);
+        accel_xyz[0]= (((rbuf[0] as u16) << 8) | (rbuf[1] as u16)) as i16;
+        accel_xyz[1]= (((rbuf[2] as u16) << 8) | (rbuf[3] as u16)) as i16;
+        accel_xyz[2]= (((rbuf[4] as u16) << 8) | (rbuf[5] as u16)) as i16;
+        self.last_accel.set(Some(accel_xyz));
+        self.callback.get().map(|mut cb| {
+            cb.schedule(accel_xyz[0] as usize, accel_xyz[1] as usize, accel_xyz[2] as usize);
+        });
     }
 }
 
@@ -84,14 +91,14 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
     fn subscribe(&self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 => { // read all three accelerometer values
-                // if chip hasn't been enabled yet (Driver::command())
+                // if chip hasn't been enabled yet (Driver::command(0))
                 if !self.enabled.get() {
                     return -1;
                 }
 
                 match self.last_accel.get() {
                     Some(accel) => {
-                        callback.schedule(accel[0] as usize, accel[1] as usize, accel[2] as usize);
+                        callback.schedule(accel[0] as usize, 0 ,0);
                     },
                     None => {
                         self.callback.set(Some(callback));
@@ -122,11 +129,11 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 self.i2c.enable();
 
                 let mut buf: [u8; 2] = [0; 2];
-        
+
                 // check that the accelerometer isn't crazy
                 self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
                 if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
-                    return -(buf[0] as isize);
+                    return -1;
                 }
 
                 // put into standby mode
@@ -141,19 +148,14 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 buf = [Registers::CtrlReg1 as u8, 0x0D];
                 self.i2c.write_sync(self.address, &buf);
 
+                self.timer.repeat(32768);
+
                 // mark ourselves as enabled
                 self.enabled.set(true);
 
                 // success!
                 0
             },
-            1 => {
-                let mut rbuf: [u8; 6] = [0; 6];
-                rbuf[0] = Registers::OutXMSB as u8;
-                self.i2c.write_sync(self.address, &rbuf[0..1]);
-                self.i2c.read_sync(self.address, &mut rbuf[0..6]);
-                0
-            }
             _ => -1
         }
     }
