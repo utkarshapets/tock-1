@@ -18,11 +18,13 @@ use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 //mod gpio_dummy;
 //mod spi_dummy;
 
+#[allow(non_snake_case)]
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
+    accelFXOS8700CQ: &'static drivers::accelFXOS8700CQ::AccelFXOS8700CQ<'static, sam4l::i2c::I2CDevice>,
 }
 
 impl Firestorm {
@@ -42,11 +44,13 @@ impl Firestorm {
             0 => f(Some(self.console)),
             1 => f(Some(&self.gpio)),
             2 => f(Some(self.tmp006)),
+            3 => f(Some(self.accelFXOS8700CQ)),
             _ => f(None)
         }
     }
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
@@ -56,6 +60,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
+    static mut ACCELFXOS8700CQ : [u8; 1028] = [0; 1028];
 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
@@ -88,6 +93,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let tmp006 : &mut drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut TMP006_BUF);
     *tmp006 = drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, timer);
 
+    let accelFXOS8700CQ : &mut drivers::accelFXOS8700CQ::AccelFXOS8700CQ<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut ACCELFXOS8700CQ);
+    *accelFXOS8700CQ = drivers::accelFXOS8700CQ::AccelFXOS8700CQ::new(&sam4l::i2c::I2C2, timer);
+
     timer.set_client(tmp006);
 
     sam4l::usart::USART3.set_client(&*console);
@@ -104,7 +112,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &sam4l::gpio::PA[16], &sam4l::gpio::PA[13]
             , &sam4l::gpio::PA[11], &sam4l::gpio::PA[10]
             , &sam4l::gpio::PA[12], &sam4l::gpio::PC[09]]),
-        tmp006: &*tmp006
+        tmp006: &*tmp006,
+        accelFXOS8700CQ: &*accelFXOS8700CQ,
     };
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
