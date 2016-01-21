@@ -67,13 +67,15 @@ int accel_enable() {
 }
 
 static CB_TYPE read_accel_cb(int r0, int r1, int r2, void* ud) {
-  int16_t *res = (int16_t*)ud;
-  *res = (int16_t)r0;
+  int16_t *res = (int16_t *)ud;
+  res[0] = r0;
+  res[1] = r1;
+  res[2] = r2;
   return READACCEL;
 }
 
-int accel_read(int16_t *x, int16_t *y, int16_t *z) {
-  int error = accel_read_async(read_accel_cb, (void*)x);
+int accel_read(int16_t *res) {
+  int error = accel_read_async(read_accel_cb, (void*)res);
   if (error < 0) {
     return error;
   }

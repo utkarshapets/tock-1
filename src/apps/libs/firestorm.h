@@ -28,7 +28,7 @@ int tmp006_read(int16_t *temperature);
 int tmp006_read_async(subscribe_cb cb, void* userdata);
 
 int accel_enable();
-int accel_read(int16_t *x, int16_t *y, int16_t *z);
+int accel_read(int16_t *res);
 int accel_read_async(subscribe_cb cb, void* userdata);
 
 #ifdef __cplusplus

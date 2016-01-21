@@ -27,14 +27,14 @@ Initializing Accelerometer... ");
   snprintf(buf, 64, "Reading from accelerometer...\r\n");
   putstr(buf);
 
-  int16_t *x, *y, *z;
-  err = accel_read(x,y,z);
+  int16_t accel[3];
+  err = accel_read(accel);
   if (err < 0) {
     snprintf(buf, 64, "Error(%d) reading from accelerometer.\r\n", err);
     putstr(buf);
     return;
   }
-  sprintf(buf, "x %d y %d z %d\r\n", x,y,z);
+  sprintf(buf, "x %d y %d z %d\r\n", accel[0], accel[1], accel[2]);
   putstr(buf);
 }
 
