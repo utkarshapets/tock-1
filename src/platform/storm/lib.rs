@@ -99,7 +99,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     timer.set_client(tmp006);
 
     // for accelerometer
-
     let mut accel_virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut ACCEL_VIRT_ALARM_BUF);
     *accel_virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
 

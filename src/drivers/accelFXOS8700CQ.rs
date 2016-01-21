@@ -7,7 +7,7 @@ use hil::timer::*;
 enum Registers {
     Status = 0x00,
 
-    // XYZ FIFO data
+    // Accel XYZ FIFO data
     OutXMSB = 0x01,
     OutXLSB = 0x02,
     OutYMSB = 0x03,
@@ -25,8 +25,12 @@ enum Registers {
 
     WhoAmI = 0x0D,
 
-    // dynamic range and filter enable settings
+    // dynamic range and filter enable settings for accel
     XYZDataCFG = 0x0E,
+
+    // magnetometer configs
+    MagnetCtrlREG1 = 0x5B,
+    MagnetCtrlREG2 = 0x5C,
 
     // config registers
     // system ODR, accel OSR, operating mode
@@ -44,7 +48,10 @@ pub struct AccelFXOS8700CQ<'a, I: I2C + 'a> {
     timer: &'a Timer,
     address: u16,
     enabled: Cell<bool>,
+    useAccelerometer: Cell<bool>,
+    useMagnetometer: Cell<bool>,
     last_accel: Cell<Option<[i16; 3]>>,
+    last_magnet: Cell<Option<[i16; 3]>>,
     callback: Cell<Option<Callback>>,
 }
 
@@ -55,7 +62,10 @@ impl<'a, I: I2C> AccelFXOS8700CQ<'a, I> {
             timer: timer,
             address: 0x1E, // default on FireStorm
             enabled: Cell::new(false),
+            useAccelerometer: Cell::new(false),
+            useMagnetometer: Cell::new(false),
             last_accel: Cell::new(None),
+            last_magnet: Cell::new(None),
             callback: Cell::new(None),
         }
     }
@@ -73,16 +83,31 @@ impl<'a, I: I2C> TimerClient for AccelFXOS8700CQ<'a, I> {
         if !self.enabled.get() {
             return;
         }
-        let mut accel_xyz: [i16; 3] = [0; 3];
-        let mut rbuf: [u8; 6] = [0; 6];
+        // the result array
+        let mut res_xyz: [i16; 3] = [0; 3];
+        // for retrieving the raw results
+        let mut rbuf: [u8; 12] = [0; 12];
+        // read out the current readings; this should be the same whether we are configured for
+        // accel or magnetometer
         rbuf[0] = Registers::OutXMSB as u8;
         self.i2c.write_read_repeated_start(self.address, Registers::OutXMSB as u8, &mut rbuf[0..6]);
-        accel_xyz[0]= (((rbuf[0] as u16) << 8) | (rbuf[1] as u16)) as i16;
-        accel_xyz[1]= (((rbuf[2] as u16) << 8) | (rbuf[3] as u16)) as i16;
-        accel_xyz[2]= (((rbuf[4] as u16) << 8) | (rbuf[5] as u16)) as i16;
-        self.last_accel.set(Some(accel_xyz));
+        // convert the MSB/LSB into the i16
+        if self.useAccelerometer.get() == true { // use first 6
+            // convert 14bit accelerometer data to 16bit
+            res_xyz[0]= ((((rbuf[0] as u16) << 8) | (rbuf[1] as u16)) >> 2) as i16;
+            res_xyz[1]= ((((rbuf[2] as u16) << 8) | (rbuf[3] as u16)) >> 2) as i16;
+            res_xyz[2]= ((((rbuf[4] as u16) << 8) | (rbuf[5] as u16)) >> 2) as i16;
+            self.last_accel.set(Some(res_xyz));
+        } else if self.useMagnetometer.get() == true {
+            res_xyz[0]= (((rbuf[0] as u16) << 8) | (rbuf[1] as u16)) as i16;
+            res_xyz[1]= (((rbuf[2] as u16) << 8) | (rbuf[3] as u16)) as i16;
+            res_xyz[2]= (((rbuf[4] as u16) << 8) | (rbuf[5] as u16)) as i16;
+            self.last_magnet.set(Some(res_xyz));
+        }
+        // store the latest value
+        // invoke the callback if we have one
         self.callback.get().map(|mut cb| {
-            cb.schedule(accel_xyz[0] as usize, accel_xyz[1] as usize, accel_xyz[2] as usize);
+            cb.schedule(res_xyz[0] as usize, res_xyz[1] as usize, res_xyz[2] as usize);
         });
     }
 }
@@ -90,41 +115,67 @@ impl<'a, I: I2C> TimerClient for AccelFXOS8700CQ<'a, I> {
 impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
     fn subscribe(&self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
-            0 => { // read all three accelerometer values
+            0 => { // read all three values
+                -1 // not implemented yet
+            },
+            1 => { // subscribe to accelerometer
                 // if chip hasn't been enabled yet (Driver::command(0))
                 if !self.enabled.get() {
                     return -1;
                 }
-                match self.last_accel.get() {
-                    Some(accel) => {
-                        callback.schedule(accel[0] as usize, accel[1] as usize ,accel[2] as usize);
-                    },
-                    None => {
-                        self.callback.set(Some(callback));
+                if self.useAccelerometer.get() == true {
+                    match self.last_accel.get() {
+                        // if we have a value, invoke the callback to return it
+                        Some(accel) => {
+                            callback.schedule(accel[0] as usize, accel[1] as usize ,accel[2] as usize);
+                        },
+                        // if not, we
+                        None => {}
                     }
+                    // save the callback if we don't have one already
+                    match self.callback.get() {
+                        Some(_) => {},
+                        None => {
+                            self.callback.set(Some(callback));
+                        }
+                    }
+                } else {
+                    return -1; // accelerometer not configured!
                 }
-                0
+                0 // success
             },
+            2 => { // subscribe to magnetometer
+                // if chip hasn't been enabled yet (Driver::command(0))
+                if !self.enabled.get() {
+                    return -1;
+                }
+                if self.useMagnetometer.get() == true {
+                    match self.last_magnet.get() {
+                        // if we have a value, invoke the callback to return it
+                        Some(magnet) => {
+                            callback.schedule(magnet[0] as usize, magnet[1] as usize ,magnet[2] as usize);
+                        },
+                        // if not, we
+                        None => {}
+                    }
+                    // save the callback if we don't have one already
+                    match self.callback.get() {
+                        Some(_) => {},
+                        None => {
+                            self.callback.set(Some(callback));
+                        }
+                    }
+
+                }
+                0 // success
+            }
             _ => -1
         }
     }
 
-    // TODO
-    // want to be able to disable timer. unsubscribe, or other command that disables.
-    // unsubscribe, not disable
-    /*
-     * Discussion: what do these commands do? the subscription command shoud probably start
-     * the timer. Think about maybe how to have multiple subscribers
-     * Also fold in the magnetometer here. It might be the case that one app wants to use
-     * the magnetometer, and one app wants to use the accelerometer
-     * ALSO: write up the wiki page for a driver. Make a good example.
-     * ALSO: write up an email on I2C driver interface: difference is between deferred
-     * and synchronous read on the i2c. Need more arguments to configure things. Make
-     * this list and make a decision on each one.
-     */
     fn command(&self, cmd_num: usize, _: usize) -> isize {
         match cmd_num {
-            0 => { // enable the sensor
+            0 => { // enable all sensors
                 self.i2c.enable();
 
                 let mut buf: [u8; 2] = [0; 2];
@@ -143,6 +194,17 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 buf = [Registers::XYZDataCFG as u8, 0x01];
                 self.i2c.write_sync(self.address, &buf);
 
+                // config magnetometer
+                // Using the default configurations from old Firestorm stuff
+                buf = [Registers::MagnetCtrlREG1 as u8, 0x1f];
+                self.i2c.write_sync(self.address, &buf);
+                buf = [Registers::MagnetCtrlREG2 as u8, 0x20];
+                self.i2c.write_sync(self.address, &buf);
+
+                // mark both accelerometer and magnetometer as configured
+                self.useAccelerometer.set(true);
+                self.useMagnetometer.set(true);
+
                 // leave standby
                 buf = [Registers::CtrlReg1 as u8, 0x0D];
                 self.i2c.write_sync(self.address, &buf);
@@ -155,6 +217,77 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 // success!
                 0
             },
+            1 => { // enable accelerometer
+                self.i2c.enable();
+
+                let mut buf: [u8; 2] = [0; 2];
+
+                // check that the accelerometer isn't crazy
+                self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
+                if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
+                    return -1;
+                }
+
+                // put into standby mode
+                buf = [Registers::CtrlReg1 as u8, 0x00];
+                self.i2c.write_sync(self.address, &buf);
+
+                // config accelerometer
+                buf = [Registers::XYZDataCFG as u8, 0x01];
+                self.i2c.write_sync(self.address, &buf);
+
+                // mark accelerometer as configured
+                self.useAccelerometer.set(true);
+
+                // leave standby
+                buf = [Registers::CtrlReg1 as u8, 0x0D];
+                self.i2c.write_sync(self.address, &buf);
+
+                self.timer.repeat(32768);
+
+                // mark ourselves as enabled
+                self.enabled.set(true);
+
+                // success!
+                0
+            },
+            2 => { // enable magnetometer
+                self.i2c.enable();
+
+                let mut buf: [u8; 2] = [0; 2];
+
+                // check that the accelerometer isn't crazy
+                self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
+                if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
+                    return -1;
+                }
+
+                // put into standby mode
+                buf = [Registers::CtrlReg1 as u8, 0x00];
+                self.i2c.write_sync(self.address, &buf);
+
+                // config magnetometer
+                // Using the default configurations from old Firestorm stuff
+                buf = [Registers::MagnetCtrlREG1 as u8, 0x1f];
+                self.i2c.write_sync(self.address, &buf);
+                buf = [Registers::MagnetCtrlREG2 as u8, 0x20];
+                self.i2c.write_sync(self.address, &buf);
+
+                // mark magnetometer as configured
+                self.useMagnetometer.set(true);
+
+                // leave standby
+                buf = [Registers::CtrlReg1 as u8, 0x0D];
+                self.i2c.write_sync(self.address, &buf);
+
+                self.timer.repeat(32768);
+
+                // mark ourselves as enabled
+                self.enabled.set(true);
+
+                // success!
+                0
+            }
             _ => -1
         }
     }
