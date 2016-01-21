@@ -60,6 +60,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
+
+    static mut ACCEL_VIRT_ALARM_BUF : [u8; 256] = [0; 256];
+    static mut ACCEL_TIMER_BUF : [u8; 1024] = [0; 1024];
     static mut ACCELFXOS8700CQ : [u8; 1028] = [0; 1028];
 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
@@ -93,10 +96,20 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let tmp006 : &mut drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut TMP006_BUF);
     *tmp006 = drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, timer);
 
-    let accelFXOS8700CQ : &mut drivers::accelFXOS8700CQ::AccelFXOS8700CQ<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut ACCELFXOS8700CQ);
-    *accelFXOS8700CQ = drivers::accelFXOS8700CQ::AccelFXOS8700CQ::new(&sam4l::i2c::I2C2, timer);
-
     timer.set_client(tmp006);
+
+    // for accelerometer
+
+    let mut accel_virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut ACCEL_VIRT_ALARM_BUF);
+    *accel_virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
+
+    let mut accel_timer : &mut AlarmToTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut ACCEL_TIMER_BUF);
+    *accel_timer = AlarmToTimer::new(accel_virtual_alarm);
+    accel_virtual_alarm.set_client(accel_timer);
+
+    let accelFXOS8700CQ : &mut drivers::accelFXOS8700CQ::AccelFXOS8700CQ<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut ACCELFXOS8700CQ);
+    *accelFXOS8700CQ = drivers::accelFXOS8700CQ::AccelFXOS8700CQ::new(&sam4l::i2c::I2C2, accel_timer);
+    accel_timer.set_client(accelFXOS8700CQ);
 
     sam4l::usart::USART3.set_client(&*console);
 

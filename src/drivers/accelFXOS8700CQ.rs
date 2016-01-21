@@ -95,10 +95,9 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 if !self.enabled.get() {
                     return -1;
                 }
-
                 match self.last_accel.get() {
                     Some(accel) => {
-                        callback.schedule(accel[0] as usize, 0 ,0);
+                        callback.schedule(accel[0] as usize, accel[1] as usize ,accel[2] as usize);
                     },
                     None => {
                         self.callback.set(Some(callback));
