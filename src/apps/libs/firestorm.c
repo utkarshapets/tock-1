@@ -62,19 +62,25 @@ int tmp006_enable() {
   return command(2, 0, 0);
 }
 
+/** FXOS8700CQ: magnetometer, accelerometer **/
+
 int accel_enable() {
-  return command(3, 0, 0);
+  return command(3, 1, 0);
+}
+
+int magnet_enable() {
+  return command(3, 2, 0);
 }
 
 static CB_TYPE read_accel_cb(int r0, int r1, int r2, void* ud) {
-  int16_t *res = (int16_t *)ud;
-  res[0] = r0;
-  res[1] = r1;
-  res[2] = r2;
+  accel_result_t *res = (accel_result_t*)ud;
+  res->x = r0;
+  res->y = r1;
+  res->z = r2;
   return READACCEL;
 }
 
-int accel_read(int16_t *res) {
+int accel_read(accel_result_t *res) {
   int error = accel_read_async(read_accel_cb, (void*)res);
   if (error < 0) {
     return error;
@@ -84,5 +90,26 @@ int accel_read(int16_t *res) {
 }
 
 int accel_read_async(subscribe_cb cb, void* userdata) {
-    return subscribe(3, 0, cb, userdata);
+    return subscribe(3, 1, cb, userdata);
+}
+
+static CB_TYPE read_magnet_cb(int r0, int r1, int r2, void* ud) {
+  magnet_result_t *res = (magnet_result_t*)ud;
+  res->x = r0;
+  res->y = r1;
+  res->z = r2;
+  return READMAGNET;
+}
+
+int magnet_read(magnet_result_t *res) {
+  int error = magnet_read_async(read_magnet_cb, (void*)res);
+  if (error < 0) {
+    return error;
+  }
+  wait_for(READMAGNET);
+  return 0;
+}
+
+int magnet_read_async(subscribe_cb cb, void* userdata) {
+    return subscribe(3, 2, cb, userdata);
 }

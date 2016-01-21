@@ -12,6 +12,7 @@ enum firestorm_cb_type {
   PUTSTR,
   READTMP,
   READACCEL,
+  READMAGNET,
   ASYNC
 };
 
@@ -27,9 +28,24 @@ int tmp006_enable();
 int tmp006_read(int16_t *temperature);
 int tmp006_read_async(subscribe_cb cb, void* userdata);
 
+typedef struct accel_result {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+} accel_result_t;
+
+typedef struct magnet_result {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+} magnet_result_t;
+
 int accel_enable();
-int accel_read(int16_t *res);
+int accel_read(accel_result_t *res);
 int accel_read_async(subscribe_cb cb, void* userdata);
+int magnet_enable();
+int magnet_read(magnet_result_t *res);
+int magnet_read_async(subscribe_cb cb, void* userdata);
 
 #ifdef __cplusplus
 }
