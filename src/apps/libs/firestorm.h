@@ -40,12 +40,12 @@ typedef struct magnet_result {
     int16_t z;
 } magnet_result_t;
 
-int accel_enable();
-int accel_read(accel_result_t *res);
-int accel_read_async(subscribe_cb cb, void* userdata);
-int magnet_enable();
-int magnet_read(magnet_result_t *res);
-int magnet_read_async(subscribe_cb cb, void* userdata);
+int FXOS8700CQ_accel_enable();
+int FXOS8700CQ_accel_read(accel_result_t *res);
+int FXOS8700CQ_accel_read_async(subscribe_cb cb, void* userdata);
+int FXOS8700CQ_magnet_enable();
+int FXOS8700CQ_magnet_read(magnet_result_t *res);
+int FXOS8700CQ_magnet_read_async(subscribe_cb cb, void* userdata);
 
 #ifdef __cplusplus
 }
