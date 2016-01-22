@@ -43,7 +43,7 @@ enum Registers {
     CtrlReg4 = 0x2D,
 }
 
-pub struct AccelFXOS8700CQ<'a, I: I2C + 'a> {
+pub struct FXOS8700CQ<'a, I: I2C + 'a> {
     i2c: &'a I,
     timer: &'a Timer,
     address: u16,
@@ -55,9 +55,9 @@ pub struct AccelFXOS8700CQ<'a, I: I2C + 'a> {
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a, I: I2C> AccelFXOS8700CQ<'a, I> {
-    pub fn new(i2c: &'a I, timer: &'a Timer) -> AccelFXOS8700CQ<'a, I> {
-        AccelFXOS8700CQ{
+impl<'a, I: I2C> FXOS8700CQ<'a, I> {
+    pub fn new(i2c: &'a I, timer: &'a Timer) -> FXOS8700CQ<'a, I> {
+        FXOS8700CQ{
             i2c: i2c,
             timer: timer,
             address: 0x1E, // default on FireStorm
@@ -71,14 +71,14 @@ impl<'a, I: I2C> AccelFXOS8700CQ<'a, I> {
     }
 
     // if the accelerometer's i2c address is different
-    pub fn new_withaddress(i2c: &'a I, timer: &'a Timer, address: u16) -> AccelFXOS8700CQ<'a, I> {
-        let mut a = AccelFXOS8700CQ::new(i2c, timer);
+    pub fn new_withaddress(i2c: &'a I, timer: &'a Timer, address: u16) -> FXOS8700CQ<'a, I> {
+        let mut a = FXOS8700CQ::new(i2c, timer);
         a.address = address;
         a
     }
 }
 
-impl<'a, I: I2C> TimerClient for AccelFXOS8700CQ<'a, I> {
+impl<'a, I: I2C> TimerClient for FXOS8700CQ<'a, I> {
     fn fired(&self, _: u32) {
         if !self.enabled.get() {
             return;
@@ -112,7 +112,7 @@ impl<'a, I: I2C> TimerClient for AccelFXOS8700CQ<'a, I> {
     }
 }
 
-impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
+impl<'a, I: I2C> Driver for FXOS8700CQ<'a, I> {
     fn subscribe(&self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 => { // read all three values
@@ -174,22 +174,25 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
     }
 
     fn command(&self, cmd_num: usize, _: usize) -> isize {
+        let mut buf: [u8; 2] = [0; 2];
+
+        if self.enabled.get() == true {
+            return -1; // can only be configured once
+        }
+        self.i2c.enable();
+
+        // check that the accelerometer isn't crazy
+        self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
+        if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
+            return -1;
+        }
+
+        // put into standby mode
+        buf = [Registers::CtrlReg1 as u8, 0x00];
+        self.i2c.write_sync(self.address, &buf);
+
         match cmd_num {
             0 => { // enable all sensors
-                self.i2c.enable();
-
-                let mut buf: [u8; 2] = [0; 2];
-
-                // check that the accelerometer isn't crazy
-                self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
-                if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
-                    return -1;
-                }
-
-                // put into standby mode
-                buf = [Registers::CtrlReg1 as u8, 0x00];
-                self.i2c.write_sync(self.address, &buf);
-
                 // config accelerometer
                 buf = [Registers::XYZDataCFG as u8, 0x01];
                 self.i2c.write_sync(self.address, &buf);
@@ -204,68 +207,16 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
                 // mark both accelerometer and magnetometer as configured
                 self.useAccelerometer.set(true);
                 self.useMagnetometer.set(true);
-
-                // leave standby
-                buf = [Registers::CtrlReg1 as u8, 0x0D];
-                self.i2c.write_sync(self.address, &buf);
-
-                self.timer.repeat(32768);
-
-                // mark ourselves as enabled
-                self.enabled.set(true);
-
-                // success!
-                0
             },
             1 => { // enable accelerometer
-                self.i2c.enable();
-
-                let mut buf: [u8; 2] = [0; 2];
-
-                // check that the accelerometer isn't crazy
-                self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
-                if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
-                    return -1;
-                }
-
-                // put into standby mode
-                buf = [Registers::CtrlReg1 as u8, 0x00];
-                self.i2c.write_sync(self.address, &buf);
-
                 // config accelerometer
                 buf = [Registers::XYZDataCFG as u8, 0x01];
                 self.i2c.write_sync(self.address, &buf);
 
                 // mark accelerometer as configured
                 self.useAccelerometer.set(true);
-
-                // leave standby
-                buf = [Registers::CtrlReg1 as u8, 0x0D];
-                self.i2c.write_sync(self.address, &buf);
-
-                self.timer.repeat(32768);
-
-                // mark ourselves as enabled
-                self.enabled.set(true);
-
-                // success!
-                0
             },
             2 => { // enable magnetometer
-                self.i2c.enable();
-
-                let mut buf: [u8; 2] = [0; 2];
-
-                // check that the accelerometer isn't crazy
-                self.i2c.write_read_repeated_start(self.address, Registers::WhoAmI as u8, &mut buf[0..1]);
-                if buf[0] != (0xC7 as u8) { // 0xC7 is the device identifier for WHOAMI
-                    return -1;
-                }
-
-                // put into standby mode
-                buf = [Registers::CtrlReg1 as u8, 0x00];
-                self.i2c.write_sync(self.address, &buf);
-
                 // config magnetometer
                 // Using the default configurations from old Firestorm stuff
                 buf = [Registers::MagnetCtrlREG1 as u8, 0x1f];
@@ -275,20 +226,19 @@ impl<'a, I: I2C> Driver for AccelFXOS8700CQ<'a, I> {
 
                 // mark magnetometer as configured
                 self.useMagnetometer.set(true);
-
-                // leave standby
-                buf = [Registers::CtrlReg1 as u8, 0x0D];
-                self.i2c.write_sync(self.address, &buf);
-
-                self.timer.repeat(32768);
-
-                // mark ourselves as enabled
-                self.enabled.set(true);
-
-                // success!
-                0
             }
-            _ => -1
+            _ => {return -1;} // unrecognized command
         }
+
+        // leave standby
+        buf = [Registers::CtrlReg1 as u8, 0x0D];
+        self.i2c.write_sync(self.address, &buf);
+
+        // mark ourselves as enabled
+        self.enabled.set(true);
+
+        self.timer.repeat(32768);
+
+        0 // success!
     }
 }
