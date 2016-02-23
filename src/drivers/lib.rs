@@ -13,3 +13,4 @@ pub mod tmp006;
 #[allow(non_snake_case)] // rust being stupid
 pub mod FXOS8700CQ;
 pub mod virtual_alarm;
+pub mod spi;

@@ -135,7 +135,6 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    #[inline(never)]
     pub fn handle_interrupt(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
 
@@ -463,6 +462,10 @@ impl hil::gpio::GPIOPin for GPIOPin {
         self.client_data.set(client_data);
         GPIOPin::set_interrupt_mode(self, mode_bits);
         GPIOPin::enable_interrupt(self);
+    }
+
+    fn disable_interrupt(&self) {
+        GPIOPin::disable_interrupt(self);
     }
 }
 

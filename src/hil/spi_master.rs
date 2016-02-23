@@ -1,6 +1,4 @@
 //! Traits and parameters for SPI master communication.
-//! Authors: Sam Crow <samcrow@uw.edu>
-//!          Philip Levis <pal@cs.stanfored.edu>
 
 use core::option::Option;
 
@@ -10,7 +8,7 @@ pub enum DataOrder {MSBFirst, LSBFirst}
 
 /// Values for the clock polarity (idle state or CPOL)
 #[derive(Copy, Clone)]
-pub enum ClockPolarity {IdleHigh, IdleLow}
+pub enum ClockPolarity {IdleLow, IdleHigh}
 
 /// Which clock edge values are sampled on
 #[derive(Copy, Clone)]
@@ -18,7 +16,10 @@ pub enum ClockPhase {SampleLeading, SampleTrailing}
 
 pub trait SpiCallback {
     /// Called when a read/write operation finishes
-    fn read_write_done(&'static self);
+    fn read_write_done(&'static self,
+                       mut write_buffer: Option<&'static mut [u8]>,
+                       mut read_buffer: Option<&'static mut [u8]>,
+                       len: usize);
 }
 /// The `SpiMaster` trait for interacting with SPI slave
 /// devices at a byte or buffer level.
@@ -79,8 +80,14 @@ pub trait SpiMaster {
     /// applied, 0 is always valid.
     fn set_chip_select(&self, cs: u8) -> bool;
     fn clear_chip_select(&self);
+    fn get_chip_select(&self) -> u8;
+
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;
+    fn get_rate(&self) -> u32;
     fn set_clock(&self, polarity: ClockPolarity);
+    fn get_clock(&self) -> ClockPolarity;
     fn set_phase(&self, phase: ClockPhase);
+    fn get_phase(&self) -> ClockPhase;
 }
+

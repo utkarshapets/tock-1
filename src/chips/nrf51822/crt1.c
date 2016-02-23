@@ -1,22 +1,16 @@
 /*
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Copyright 2014, Michael Andersen <m.andersen@eecs.berkeley.edu>
+ * This file has been relicensed by the original author from GPLv3 to Apache 2.0
+ * The original version of the file, under GPL can be found at
+ * https://github.com/SoftwareDefinedBuildings/
+ *     stormport/blob/rebase0/tos/platforms/storm/stormcrt1.c
+ * 
+ * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
 #include <stdint.h>
 #include <string.h>
+
+#include "peripheral_interrupts.h"
 
 /* Symbols defined in the linker file */
 extern uint32_t _estack;
@@ -41,6 +35,7 @@ void HardFault_Handler(void)
 void SVC_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
 void PendSV_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
 void SysTick_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
+PERIPHERAL_INTERRUPT_HANDLERS
 
 typedef void (*interrupt_function_t) (void);
 
@@ -55,16 +50,25 @@ interrupt_function_t interrupt_table[] = {
 	0, 0,			/* Reserved */
 	PendSV_Handler,
 	SysTick_Handler,
+	PERIPHERAL_INTERRUPT_VECTORS
 };
 
 void Reset_Handler(void)
 {
 	uint32_t *pSrc, *pDest;
 
-	/* Power on RAM blocks manually (see nRF51822-PAN v2.4, PAN #16). Note
-	 * that xxAA/xxAB variants have only two RAM blocks. For xxAC, change
-	 * to 0x0F. */
-	*((uint32_t volatile * ) 0x40000524) = 0x03;
+	/* Apply early initialization workarounds for anomalies documented on
+	 * nRF51822-PAN v2.4. Note that they have been validated only for xxAA
+	 * variant. For other variants, please refer to the applicable
+	 * nRF51822-PAN. */
+
+	/* Power on RAM blocks manually (PAN #16). Note that xxAA/xxAB variants
+	 * have only two RAM blocks. For xxAC, change to 0x0000000F. */
+	*((uint32_t volatile * ) 0x40000524) = 0x00000003;
+
+	/* Setup peripherals manually (PAN #26) */
+	*((uint32_t volatile * ) 0x40000504) = 0xC007FFDF;
+	*((uint32_t volatile * ) 0x40006C18) = 0x00008000;
 
 	/* Move the relocate segment
 	 * This assumes it is located after the
@@ -89,65 +93,3 @@ void Reset_Handler(void)
 	main();
 }
 
-// IMPORTANT!! __aeabi_memset has count and value arguments reversed from ANSI
-// memset. TODO(alevy): Why does arm-none-eabi's libc not have __aeabi_memset?
-__attribute__ ((weak))
-void __aeabi_memset(void *dest, size_t count, int value)
-{
-	memset(dest, value, count);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memcpy(void *dest, void *src, unsigned int n)
-{
-	memcpy(dest, src, n);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memcpy4(void *dest, void *src, unsigned int n)
-{
-	memcpy(dest, src, n);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memcpy8(void *dest, void *src, unsigned int n)
-{
-	memcpy(dest, src, n);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memclr(void *dest, size_t n)
-{
-	memset(dest, 0, n);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memclr4(void *dest, size_t n)
-{
-	memset(dest, 0, n);
-}
-
-__attribute__ ((weak))
-extern void __aeabi_memclr8(void *dest, size_t n)
-{
-	memset(dest, 0, n);
-}
-
-/* Based on reference code from GCC documentation, see "Legacy __sync Built-in
- * Functions for Atomic Memory Access" */
-
-__attribute__ ((weak))
-extern uint32_t __sync_fetch_and_add_4(uint32_t * ptr, uint32_t val)
-{
-	uint32_t tmp = *ptr;
-	*ptr += val;
-	return tmp;
-}
-
-__attribute__ ((weak))
-extern uint32_t __sync_fetch_and_sub_4(uint32_t * ptr, uint32_t val)
-{
-	uint32_t tmp = *ptr;
-	*ptr -= val;
-	return tmp;
-}
