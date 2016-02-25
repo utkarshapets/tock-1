@@ -25,3 +25,7 @@ $(BUILD_APP_DIR)/tmp006.o: $(SRC_DIR)apps/libs/tmp006.c $(SRC_DIR)apps/libs/tmp0
 	@echo "Building TMP006 driver for apps"
 	@$(CC) $(CFLAGS_BASE) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
+$(BUILD_APP_DIR)/fxos8700cq.o: $(SRC_DIR)apps/libs/fxos8700cq.c $(SRC_DIR)apps/libs/fxos8700cq.h | $(BUILD_APP_DIR)
+	@echo "Building FXOS8700CQ accelerometer/magnetometer driver for apps"
+	@$(CC) $(CFLAGS_BASE) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
+
